@@ -1,8 +1,8 @@
 # Creador de contratos - Apple Travel
 
 Herramienta interna: pega los datos de la reserva (desde la hoja de seguimiento, o a mano),
-revisa el contrato, y se envia automaticamente a firma por Dropbox Sign. Acceso restringido
-por cuenta (usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
+revisa el contrato, y lo descarga en Word listo para firmar. Acceso restringido por cuenta
+(usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
 
 ## Como funciona
 
@@ -23,8 +23,14 @@ por cuenta (usuario + contraseña + verificacion en dos pasos), administrado des
    interpreta ese texto y lo ordena en los campos del contrato. Si falta algo obligatorio,
    no deja continuar.
 4. Se muestra una **vista previa** de lo extraido. Se puede **editar** cualquier dato.
-5. Al darle **Enviar a firma**, se rellena la plantilla Word original (`app/documents/contrato_turismo/template.docx`,
-   sin tocar logos, tablas ni clausulas) y se manda a **Dropbox Sign** para que el cliente firme.
+5. Al darle **Descargar contrato**, se rellena la plantilla Word original
+   (`app/documents/contrato_turismo/template.docx`, sin tocar logos, tablas ni clausulas) y se
+   descarga en `.docx`, listo para revisar y enviar a firma por el medio que prefieran.
+
+> El envio automatico a firma por **Dropbox Sign** ya esta implementado en el codigo
+> (`app/services/dropboxsign_client.py`) pero esta desactivado: requiere un plan de API de pago
+> de Dropbox Sign (distinto del plan normal de la app web). Para reactivarlo, ver el comentario
+> en `app/routes/documents_routes.py`.
 
 La app esta pensada para crecer: hoy solo existe "Crear contrato", pero se pueden agregar
 mas tipos de documento (ej. cotizaciones) sin tocar el resto del sistema — ver el
@@ -56,20 +62,15 @@ administrador ni la propia cuenta desde ahi (para evitar quedar sin acceso).
 
 ## Que necesitas antes de arrancar
 
-Cuentas: **GitHub**, **Vercel** y **Dropbox Sign** (ya las tienes). Ademas:
+Cuentas: **GitHub** y **Vercel** (ya las tienes). Ademas:
 
-### 1. API key de Dropbox Sign
-
-1. En tu cuenta de Dropbox Sign: **Settings → API → API Key**.
-2. Copia la key.
-
-### 2. Base de datos
+### 1. Base de datos
 
 En Vercel, el proyecto ya tiene conectada una base de datos Postgres (Neon, plan gratuito)
 que guarda los usuarios. La variable `DATABASE_URL` la inyecta Vercel automaticamente — no
 hay que configurarla a mano en producción.
 
-### 3. Correo para los codigos de verificacion (SMTP)
+### 2. Correo para los codigos de verificacion (SMTP)
 
 Se necesita una cuenta de correo que el sistema use para enviar los codigos de 2FA:
 
@@ -114,9 +115,10 @@ tabla de usuarios esta vacia).
 3. Conecta una base de datos Postgres (recomendado: Neon, desde el tab **Storage** del
    proyecto en Vercel) — esto crea `DATABASE_URL` automaticamente.
 4. En **Settings → Environment Variables**, agrega: `SESSION_SECRET`, `BASE_URL`
-   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `DROPBOX_SIGN_API_KEY`,
+   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `SMTP_USER`, `SMTP_PASSWORD`,
    y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el primer arranque (bootstrap
-   del primer administrador).
+   del primer administrador). `DROPBOX_SIGN_API_KEY` solo hace falta si reactivas el envio
+   automatico a firma (ver nota mas arriba).
 5. Despliega.
 
 ## Estructura del proyecto
@@ -153,10 +155,14 @@ templates/, static/                 la interfaz (HTML + CSS + JS simple, sin fra
 ## Limitaciones conocidas
 
 - La "vista previa" del paso 2 es un resumen ordenado de los datos (no una imagen exacta
-  del Word), porque convertir a PDF en el navegador requeriria instalar LibreOffice en el
-  servidor. El documento Word final que se envia a firma si mantiene el diseño original completo.
-- El campo de firma del cliente se marca en el documento con un "text tag" de Dropbox Sign
-  (`[sig|req|signer1]`), oculto automaticamente por Dropbox Sign al procesar el envio.
+  del Word). El documento `.docx` que se descarga si mantiene el diseño original completo.
+- La descarga es en formato Word (`.docx`), no PDF: convertir a PDF en el servidor
+  requeriria instalar LibreOffice (pesado para este tipo de hosting) o contratar un servicio
+  externo de conversion. Pasar de Word a PDF a mano toma segundos (Word/Google Docs
+  tienen "Guardar como PDF" integrado).
+- El envio automatico a firma por Dropbox Sign esta implementado pero desactivado (requiere
+  un plan de API de pago); el texto tiene incrustado el "text tag" `[sig|req|signer1]` para
+  cuando se reactive.
 - No hay proteccion tipo CAPTCHA visible (Cloudflare Turnstile, etc.) — se uso honeypot +
   bloqueo por intentos en su lugar para no depender de otra cuenta/servicio externo. Si el
   trafico de bots se vuelve un problema, es facil agregarlo mas adelante.

@@ -308,21 +308,38 @@
     spinner.hidden = false;
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/${slug}/generar`, {
+      const res = await fetch(`/api/${slug}/descargar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state.data),
       });
-      const body = await res.json();
       if (!res.ok) {
+        const body = await res.json();
         if (body.missing) {
           setError("review-error", body.missing);
           enterEditMode();
         } else {
-          setError("review-error", body.error || "No se pudo enviar el contrato.");
+          setError("review-error", body.error || "No se pudo generar el contrato.");
         }
         return;
       }
+
+      const blob = await res.blob();
+      let filename = "contrato.docx";
+      const disposition = res.headers.get("Content-Disposition");
+      if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
       showStep("success");
     } catch (err) {
       setError("review-error", "Error de conexion: " + err.message);

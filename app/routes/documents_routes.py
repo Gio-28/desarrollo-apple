@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from app.auth import current_user
 from app.documents import get, list_enabled
-from app.services.dropboxsign_client import send_for_signature
 from app.templating import templates
 
 router = APIRouter()
@@ -60,8 +59,12 @@ async def api_parse(request: Request, slug: str):
     return JSONResponse({"data": data.model_dump(), "missing": missing})
 
 
-@router.post("/api/{slug}/generar")
-async def api_generar(request: Request, slug: str):
+@router.post("/api/{slug}/descargar")
+async def api_descargar(request: Request, slug: str):
+    # Nota: el envio automatico a firma por Dropbox Sign ya esta implementado
+    # (app/services/dropboxsign_client.py, doc_type.signer_fn/cc_fn/document_title_fn) pero
+    # esta desactivado porque requiere un plan de API de pago en Dropbox Sign. Para reactivarlo,
+    # llamar a send_for_signature(...) aqui en vez de devolver el archivo directamente.
     user = current_user(request)
     if not user:
         return JSONResponse({"error": "No autenticado"}, status_code=401)
@@ -82,17 +85,14 @@ async def api_generar(request: Request, slug: str):
 
     try:
         docx_bytes = doc_type.fill_fn(data)
-        signer_email, signer_name = doc_type.signer_fn(data)
-        cc_email_addresses = doc_type.cc_fn(data) if doc_type.cc_fn else []
-        result = send_for_signature(
-            docx_bytes=docx_bytes,
-            filename=f"{doc_type.slug}-{signer_name}.docx",
-            title=doc_type.document_title_fn(data),
-            signer_email=signer_email,
-            signer_name=signer_name,
-            cc_email_addresses=cc_email_addresses,
-        )
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": f"No se pudo enviar a firma: {exc}"}, status_code=502)
+        return JSONResponse({"error": f"No se pudo generar el documento: {exc}"}, status_code=500)
 
-    return JSONResponse({"ok": True, "result": result})
+    filename = doc_type.document_title_fn(data).strip() or doc_type.slug
+    filename = "".join(c for c in filename if c not in '<>:"/\\|?*') + ".docx"
+
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

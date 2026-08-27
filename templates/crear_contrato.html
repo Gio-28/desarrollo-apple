@@ -6,7 +6,7 @@
   <div class="steps-indicator">
     <span class="step-dot active" data-step="paste">1. Pegar datos</span>
     <span class="step-dot" data-step="review">2. Revisar</span>
-    <span class="step-dot" data-step="success">3. Enviado</span>
+    <span class="step-dot" data-step="success">3. Descargado</span>
   </div>
 
   <!-- PASO 1: pegar texto -->
@@ -62,7 +62,7 @@ No incluye: Gastos personales"></textarea>
   <!-- PASO 2: revisar / editar -->
   <section id="step-review" class="step-panel">
     <h1>Revisa el contrato</h1>
-    <p class="muted">Verifica que todo este correcto antes de enviarlo a firma.</p>
+    <p class="muted">Verifica que todo este correcto antes de descargar el contrato.</p>
 
     <div class="error-box" id="review-error" hidden></div>
 
@@ -74,7 +74,7 @@ No incluye: Gastos personales"></textarea>
       <button class="btn-secondary" id="btn-editar">Editar</button>
       <button class="btn-secondary" id="btn-guardar" hidden>Guardar cambios</button>
       <button class="btn-secondary" id="btn-volver">Volver a pegar datos</button>
-      <button class="btn-primary" id="btn-enviar">Enviar a firma</button>
+      <button class="btn-primary" id="btn-enviar">Descargar contrato</button>
       <span class="spinner" id="review-spinner" hidden></span>
     </div>
   </section>
@@ -83,8 +83,8 @@ No incluye: Gastos personales"></textarea>
   <section id="step-success" class="step-panel">
     <div class="success-box">
       <div class="success-icon">&#10003;</div>
-      <h1>Contrato enviado</h1>
-      <p class="muted" id="success-msg">El contrato se envio a Dropbox Sign para que el cliente lo firme.</p>
+      <h1>Contrato descargado</h1>
+      <p class="muted" id="success-msg">Revisalo antes de enviarlo o firmarlo con el cliente.</p>
       <button class="btn-primary" id="btn-nuevo">Crear otro contrato</button>
     </div>
   </section>
