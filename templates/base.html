@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Apple Travel{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">
+      <img src="/static/img/logo.png" alt="Apple Travel" class="brand-logo" />
+    </a>
+    {% if user %}
+    <div class="user-box">
+      <span class="user-name">{{ user.name }}</span>
+      <a href="/logout" class="btn-link">Cerrar sesion</a>
+    </div>
+    {% endif %}
+  </header>
+
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Apple Travel - Herramientas{% endblock %}
+{% block content %}
+<div class="home-wrap">
+  <h1>Hola, {{ user.name.split(' ')[0] }}</h1>
+  <p class="muted">Elige que quieres crear.</p>
+
+  <div class="cards-grid">
+    {% for dt in document_types %}
+    <a href="/crear/{{ dt.slug }}" class="doc-card">
+      <div class="doc-card-icon">📄</div>
+      <div class="doc-card-title">{{ dt.title }}</div>
+      <div class="doc-card-desc">{{ dt.description }}</div>
+    </a>
+    {% endfor %}
+
+    <div class="doc-card doc-card-disabled">
+      <div class="doc-card-icon">🧾</div>
+      <div class="doc-card-title">Crear cotizacion</div>
+      <div class="doc-card-desc">Proximamente.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

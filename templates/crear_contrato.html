@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ doc_type.title }} - Apple Travel{% endblock %}
+{% block content %}
+<div class="wizard" id="wizard" data-slug="{{ doc_type.slug }}">
+
+  <div class="steps-indicator">
+    <span class="step-dot active" data-step="paste">1. Pegar datos</span>
+    <span class="step-dot" data-step="review">2. Revisar</span>
+    <span class="step-dot" data-step="success">3. Enviado</span>
+  </div>
+
+  <!-- PASO 1: pegar texto -->
+  <section id="step-paste" class="step-panel active">
+    <h1>{{ doc_type.title }}</h1>
+    <p class="muted">Pega aqui toda la informacion del cliente y la reserva, en el orden que sea. El sistema identifica automaticamente cada dato.</p>
+
+    <textarea id="paste-textarea" rows="16" placeholder="Ejemplo:
+Asesor: Juan Perez
+Cliente: Maria Gomez, CC 1020304050
+Tel: 3001234567
+Correo: maria@correo.com
+Direccion: Calle 10 #20-30, Medellin
+Destino: Cancun
+Confirmacion reserva: APT-2026-001
+Valor total: 8.500.000
+Fecha limite de pago: 15 de septiembre
+Pagos: 20/08 abono 2.000.000, 15/09 saldo 6.500.000
+Programa: Cancun Todo Incluido 5 noches
+Fecha del viaje: 10 al 15 de octubre
+Hotel: Riu Cancun
+Pasajeros: Maria Gomez CC 1020304050, Carlos Gomez CC 1020304051
+Incluye: tiquetes aereos, hotel, traslados
+No incluye: gastos personales, propinas"></textarea>
+
+    <div class="error-box" id="paste-error" hidden></div>
+
+    <div class="actions-row">
+      <button class="btn-primary" id="btn-continuar">Continuar</button>
+      <span class="spinner" id="paste-spinner" hidden></span>
+    </div>
+  </section>
+
+  <!-- PASO 2: revisar / editar -->
+  <section id="step-review" class="step-panel">
+    <h1>Revisa el contrato</h1>
+    <p class="muted">Verifica que todo este correcto antes de enviarlo a firma.</p>
+
+    <div class="error-box" id="review-error" hidden></div>
+
+    <div id="preview-view"></div>
+
+    <div id="edit-view" hidden></div>
+
+    <div class="actions-row">
+      <button class="btn-secondary" id="btn-editar">Editar</button>
+      <button class="btn-secondary" id="btn-guardar" hidden>Guardar cambios</button>
+      <button class="btn-secondary" id="btn-volver">Volver a pegar datos</button>
+      <button class="btn-primary" id="btn-enviar">Enviar a firma</button>
+      <span class="spinner" id="review-spinner" hidden></span>
+    </div>
+  </section>
+
+  <!-- PASO 3: exito -->
+  <section id="step-success" class="step-panel">
+    <div class="success-box">
+      <div class="success-icon">&#10003;</div>
+      <h1>Contrato enviado</h1>
+      <p class="muted" id="success-msg">El contrato se envio a Dropbox Sign para que el cliente lo firme.</p>
+      <button class="btn-primary" id="btn-nuevo">Crear otro contrato</button>
+    </div>
+  </section>
+
+</div>
+
+<template id="tpl-field-row-pago">
+  <div class="dyn-row">
+    <input type="text" class="inp-fecha" placeholder="Fecha (ej. 15 de septiembre)" />
+    <input type="text" class="inp-valor" placeholder="Valor (ej. 2.000.000)" />
+    <button type="button" class="btn-remove-row" title="Quitar">&times;</button>
+  </div>
+</template>
+
+<template id="tpl-field-row-persona">
+  <div class="dyn-row">
+    <input type="text" class="inp-nombre" placeholder="Nombre completo" />
+    <input type="text" class="inp-doc" placeholder="Documento / cedula" />
+    <button type="button" class="btn-remove-row" title="Quitar">&times;</button>
+  </div>
+</template>
+
+<script src="/static/js/app.js"></script>
+{% endblock %}
