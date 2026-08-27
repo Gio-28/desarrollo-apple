@@ -6,6 +6,7 @@
 
   const SCALAR_FIELDS = [
     ["asesor_comercial", "Asesor comercial"],
+    ["asesor_correo", "Correo del asesor"],
     ["cliente_nombre", "Nombre del cliente"],
     ["cliente_cedula", "Cedula de ciudadania / NIT"],
     ["cliente_direccion", "Direccion"],
@@ -23,7 +24,7 @@
   ];
 
   const EMPTY_DATA = {
-    asesor_comercial: "", cliente_nombre: "", cliente_cedula: "", cliente_direccion: "",
+    asesor_comercial: "", asesor_correo: "", cliente_nombre: "", cliente_cedula: "", cliente_direccion: "",
     cliente_telefono: "", cliente_correo: "", destino: "", confirmacion_reserva: "",
     valor_total: "", fecha_limite_pago: "", pagos: [], pasajeros_adicionales: [],
     programa: "", fecha_reserva: "", hotel: "", check_in: "15:00", check_out: "12:00",
@@ -127,6 +128,7 @@
     let html = "";
     html += `<div class="pv-card"><h2>Contrato</h2>`;
     html += rows("Asesor comercial", d.asesor_comercial);
+    html += rows("Correo del asesor", d.asesor_correo);
     html += rows("Cliente", d.cliente_nombre);
     html += rows("Cedula / NIT", d.cliente_cedula);
     html += rows("Direccion", d.cliente_direccion);
@@ -177,7 +179,7 @@
   function renderEditForm() {
     const d = state.data;
     let html = `<div class="edit-card"><h2>Contrato</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(0, 10).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(0, 11).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;
@@ -189,7 +191,7 @@
       <button type="button" class="btn-add" data-add="adicionales">+ Agregar viajero</button></div>`;
 
     html += `<div class="edit-card"><h2>Confirmacion de reserva</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(10).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(11).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;

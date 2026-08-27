@@ -18,6 +18,7 @@ class PasajeroReserva(BaseModel):
 
 class ContratoTurismo(BaseModel):
     asesor_comercial: str = Field("", description="Nombre del asesor comercial de Apple Travel que atendio al cliente")
+    asesor_correo: str = Field("", description="Correo electronico del asesor comercial, para enviarle copia del contrato")
     cliente_nombre: str = Field("", description="Nombre completo del cliente / tomador del contrato")
     cliente_cedula: str = Field("", description="Cedula de ciudadania o NIT del cliente")
     cliente_direccion: str = Field("", description="Direccion de residencia del cliente")
@@ -51,6 +52,7 @@ class ContratoTurismo(BaseModel):
 # (field, etiqueta visible)
 REQUIRED_SIMPLE_FIELDS = [
     ("asesor_comercial", "Asesor comercial"),
+    ("asesor_correo", "Correo del asesor comercial"),
     ("cliente_nombre", "Nombre del cliente"),
     ("cliente_cedula", "Cedula de ciudadania o NIT del cliente"),
     ("cliente_direccion", "Direccion del cliente"),

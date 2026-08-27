@@ -11,6 +11,7 @@ def send_for_signature(
     title: str,
     signer_email: str,
     signer_name: str,
+    cc_email_addresses: list[str] | None = None,
     subject: str = "Contrato de turismo Apple Travel",
     message: str = "Por favor revisa y firma el contrato adjunto.",
 ) -> dict:
@@ -27,6 +28,8 @@ def send_for_signature(
         "hide_text_tags": "1",
         "test_mode": "0",
     }
+    for i, cc_email in enumerate(cc_email_addresses or []):
+        data[f"cc_email_addresses[{i}]"] = cc_email
 
     with httpx.Client(timeout=60) as client:
         response = client.post(

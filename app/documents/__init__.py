@@ -30,6 +30,8 @@ class DocumentType:
     fill_fn: Callable[[BaseModel], bytes]
     signer_fn: Callable[[BaseModel], tuple[str, str]]
     missing_fields_fn: Callable[[BaseModel], list[str]]
+    document_title_fn: Callable[[BaseModel], str]
+    cc_fn: Callable[[BaseModel], list[str]] | None = None
     enabled: bool = True
 
 

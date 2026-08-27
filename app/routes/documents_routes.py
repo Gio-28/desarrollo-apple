@@ -83,12 +83,14 @@ async def api_generar(request: Request, slug: str):
     try:
         docx_bytes = doc_type.fill_fn(data)
         signer_email, signer_name = doc_type.signer_fn(data)
+        cc_email_addresses = doc_type.cc_fn(data) if doc_type.cc_fn else []
         result = send_for_signature(
             docx_bytes=docx_bytes,
             filename=f"{doc_type.slug}-{signer_name}.docx",
-            title=f"{doc_type.title} - {signer_name}",
+            title=doc_type.document_title_fn(data),
             signer_email=signer_email,
             signer_name=signer_name,
+            cc_email_addresses=cc_email_addresses,
         )
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": f"No se pudo enviar a firma: {exc}"}, status_code=502)

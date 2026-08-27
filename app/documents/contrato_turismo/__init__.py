@@ -5,7 +5,17 @@ from app.documents.contrato_turismo.text_parser import parse_pasted_text
 
 
 def _signer(data: ContratoTurismo) -> tuple[str, str]:
-    return data.cliente_correo, data.cliente_nombre
+    # El "nombre" del firmante en Dropbox Sign se usa como numero(s) de reserva
+    # (ej. "T-9090 - 8080 - 7890"), para identificar el contrato en el panel de Dropbox Sign.
+    return data.cliente_correo, data.confirmacion_reserva
+
+
+def _document_title(data: ContratoTurismo) -> str:
+    return data.confirmacion_reserva
+
+
+def _cc(data: ContratoTurismo) -> list[str]:
+    return [data.asesor_correo] if data.asesor_correo else []
 
 
 def register_contrato_turismo() -> None:
@@ -20,5 +30,7 @@ def register_contrato_turismo() -> None:
             fill_fn=fill_contract,
             signer_fn=_signer,
             missing_fields_fn=missing_fields,
+            document_title_fn=_document_title,
+            cc_fn=_cc,
         )
     )
