@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Configurar correo - Apple Travel{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
+    <h1>Configura tu correo</h1>
+    <p class="muted">
+      Necesitamos un correo donde enviarte el codigo de verificacion cada vez que inicies sesion.
+    </p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/configurar-correo" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="form-field">
+        <span>Correo electronico</span>
+        <input type="email" name="email" required autofocus autocomplete="email" />
+      </label>
+      <label class="form-field">
+        <span>Confirmar correo</span>
+        <input type="email" name="confirmar_email" required autocomplete="email" />
+      </label>
+      <button type="submit" class="btn-primary btn-block">Guardar y enviar codigo</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

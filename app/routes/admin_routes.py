@@ -12,7 +12,7 @@ from app.auth import (
     require_admin,
     reset_password,
 )
-from app.security import constant_time_eq, generate_temp_password, password_is_strong
+from app.security import constant_time_eq, email_is_valid, generate_temp_password, password_is_strong
 from app.templating import templates
 
 router = APIRouter()
@@ -40,6 +40,7 @@ async def admin_usuarios_page(request: Request, error: str | None = None, ok: st
 async def admin_crear_usuario(
     request: Request,
     username: str = Form(...),
+    email: str = Form(...),
     es_admin: str = Form(""),
     csrf_token: str = Form(...),
 ):
@@ -49,13 +50,16 @@ async def admin_crear_usuario(
         return RedirectResponse(url="/login")
 
     username = username.strip()
+    email = email.strip().lower()
     if not username:
         return RedirectResponse(url="/admin/usuarios?error=" + "El usuario no puede estar vacio.", status_code=303)
+    if not email_is_valid(email):
+        return RedirectResponse(url="/admin/usuarios?error=" + "El correo no es valido.", status_code=303)
     if get_user_by_username(username):
         return RedirectResponse(url="/admin/usuarios?error=" + "Ya existe un usuario con ese nombre.", status_code=303)
 
     temp_password = generate_temp_password()
-    create_user(username=username, password=temp_password, is_admin=bool(es_admin), created_by=admin["username"])
+    create_user(username=username, password=temp_password, is_admin=bool(es_admin), created_by=admin["username"], email=email)
 
     return templates.TemplateResponse(
         "admin_usuarios.html",

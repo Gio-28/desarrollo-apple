@@ -28,6 +28,10 @@
         <span>Nombre de usuario</span>
         <input type="text" name="username" required />
       </label>
+      <label class="form-field">
+        <span>Correo (recibira el codigo de verificacion)</span>
+        <input type="email" name="email" required />
+      </label>
       <label class="checkbox-field">
         <input type="checkbox" name="es_admin" value="1" />
         <span>Es administrador</span>
@@ -42,8 +46,8 @@
       <thead>
         <tr>
           <th>Usuario</th>
+          <th>Correo</th>
           <th>Rol</th>
-          <th>2FA</th>
           <th>Estado</th>
           <th>Creado</th>
           <th></th>
@@ -53,8 +57,8 @@
         {% for u in usuarios %}
         <tr>
           <td>{{ u.username }}</td>
+          <td>{{ u.email or "Sin configurar" }}</td>
           <td>{{ "Administrador" if u.is_admin else "Asesor" }}</td>
-          <td>{{ "Activo" if u.totp_enabled else "Pendiente" }}</td>
           <td>{{ "Bloqueada" if u.locked_until else "OK" }}</td>
           <td>{{ u.created_at.strftime("%Y-%m-%d") }}</td>
           <td class="users-actions">

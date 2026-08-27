@@ -4,20 +4,28 @@
 <div class="login-wrap">
   <div class="login-card">
     <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
-    <h1>Verificacion en dos pasos</h1>
-    <p class="muted">Ingresa el codigo de 6 digitos de tu app de autenticacion.</p>
+    <h1>Verifica tu identidad</h1>
+    <p class="muted">Enviamos un codigo de 6 digitos a <strong>{{ email }}</strong>. Vence en 10 minutos.</p>
 
     {% if error %}
     <div class="alert alert-error">{{ error }}</div>
     {% endif %}
+    {% if ok %}
+    <div class="alert alert-ok">{{ ok }}</div>
+    {% endif %}
 
-    <form method="post" action="/2fa/verificar" class="auth-form" autocomplete="off">
+    <form method="post" action="/verificar-codigo" class="auth-form" autocomplete="off">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <label class="form-field">
         <span>Codigo de 6 digitos</span>
         <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code" />
       </label>
       <button type="submit" class="btn-primary btn-block">Verificar</button>
+    </form>
+
+    <form method="post" action="/verificar-codigo/reenviar" style="margin-top: 12px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" class="btn-link">Reenviar codigo</button>
     </form>
   </div>
 </div>

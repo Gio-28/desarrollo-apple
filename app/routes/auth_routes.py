@@ -1,3 +1,5 @@
+import datetime
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
@@ -8,20 +10,20 @@ from app.auth import (
     get_user_by_username,
     register_failed_attempt,
     reset_failed_attempts,
+    set_email,
     set_password,
-    set_totp_secret,
 )
 from app.security import (
+    OTP_TTL_MINUTES,
     constant_time_eq,
+    email_is_valid,
+    generate_otp_code,
     is_locked,
     lockout_remaining_seconds,
-    new_totp_secret,
     password_is_strong,
-    totp_provisioning_uri,
     verify_password,
-    verify_totp,
 )
-from app.qr import generate_qr_svg
+from app.services.email_client import send_otp_email
 from app.templating import templates
 
 router = APIRouter()
@@ -37,10 +39,23 @@ def _pending_user(request: Request) -> dict | None:
 def _finish_login(request: Request, user: dict) -> RedirectResponse:
     reset_failed_attempts(user["id"])
     request.session["user"] = {"id": user["id"], "username": user["username"], "is_admin": user["is_admin"]}
-    for key in ("pending_user_id", "pending_totp_secret"):
+    for key in ("pending_user_id", "pending_otp_code", "pending_otp_expires"):
         request.session.pop(key, None)
     next_path = request.session.pop("post_login_redirect", "/") or "/"
     return RedirectResponse(url=next_path, status_code=303)
+
+
+def _send_login_code(request: Request, user: dict) -> str | None:
+    """Genera y envia el codigo de verificacion. Devuelve un mensaje de error, o None si fue bien."""
+    code = generate_otp_code()
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=OTP_TTL_MINUTES)
+    request.session["pending_otp_code"] = code
+    request.session["pending_otp_expires"] = expires.isoformat()
+    try:
+        send_otp_email(user["email"], code)
+    except Exception as exc:  # noqa: BLE001
+        return f"No se pudo enviar el codigo por correo ({exc}). Contacta a un administrador."
+    return None
 
 
 @router.get("/login")
@@ -106,9 +121,17 @@ async def login_submit(
 
     if user["must_change_password"]:
         return RedirectResponse(url="/cambiar-clave", status_code=303)
-    if not user["totp_enabled"]:
-        return RedirectResponse(url="/2fa/configurar", status_code=303)
-    return RedirectResponse(url="/2fa/verificar", status_code=303)
+    if not user["email"]:
+        return RedirectResponse(url="/configurar-correo", status_code=303)
+
+    err = _send_login_code(request, user)
+    if err:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "next": next, "error": err, "csrf_token": get_csrf_token(request)},
+            status_code=502,
+        )
+    return RedirectResponse(url="/verificar-codigo", status_code=303)
 
 
 @router.get("/cambiar-clave")
@@ -152,9 +175,12 @@ async def cambiar_clave_submit(
 
     if request.session.get("pending_user_id"):
         fresh = get_user_by_id(user["id"])
-        if not fresh["totp_enabled"]:
-            return RedirectResponse(url="/2fa/configurar", status_code=303)
-        return RedirectResponse(url="/2fa/verificar", status_code=303)
+        if not fresh["email"]:
+            return RedirectResponse(url="/configurar-correo", status_code=303)
+        err = _send_login_code(request, fresh)
+        if err:
+            return templates.TemplateResponse("cambiar_clave.html", {"request": request, "error": err, "csrf_token": get_csrf_token(request)}, status_code=502)
+        return RedirectResponse(url="/verificar-codigo", status_code=303)
 
     return templates.TemplateResponse(
         "cambiar_clave.html",
@@ -162,89 +188,104 @@ async def cambiar_clave_submit(
     )
 
 
-@router.get("/2fa/configurar")
-async def totp_setup_page(request: Request, error: str | None = None):
-    user = _pending_user(request)
-    if not user:
-        return RedirectResponse(url="/login")
-
-    secret = request.session.get("pending_totp_secret")
-    if not secret:
-        secret = new_totp_secret()
-        request.session["pending_totp_secret"] = secret
-
-    uri = totp_provisioning_uri(secret, user["username"])
-    qr_svg = generate_qr_svg(uri)
-
-    return templates.TemplateResponse(
-        "2fa_setup.html",
-        {
-            "request": request,
-            "error": error,
-            "secret": secret,
-            "qr_svg": qr_svg,
-            "csrf_token": get_csrf_token(request),
-        },
-    )
-
-
-@router.post("/2fa/configurar")
-async def totp_setup_submit(request: Request, code: str = Form(...), csrf_token: str = Form(...)):
-    session_csrf = request.session.get("csrf_token")
-    user = _pending_user(request)
-    secret = request.session.get("pending_totp_secret")
-    if not user or not secret or not constant_time_eq(csrf_token, session_csrf or ""):
-        return RedirectResponse(url="/login")
-
-    if not verify_totp(secret, code):
-        uri = totp_provisioning_uri(secret, user["username"])
-        return templates.TemplateResponse(
-            "2fa_setup.html",
-            {
-                "request": request,
-                "error": "Codigo incorrecto, intenta de nuevo.",
-                "secret": secret,
-                "qr_svg": generate_qr_svg(uri),
-                "csrf_token": get_csrf_token(request),
-            },
-            status_code=400,
-        )
-
-    set_totp_secret(user["id"], secret)
-    return _finish_login(request, user)
-
-
-@router.get("/2fa/verificar")
-async def totp_verify_page(request: Request, error: str | None = None):
+@router.get("/configurar-correo")
+async def configurar_correo_page(request: Request, error: str | None = None):
     user = _pending_user(request)
     if not user:
         return RedirectResponse(url="/login")
     return templates.TemplateResponse(
-        "2fa_verify.html",
+        "configurar_correo.html",
         {"request": request, "error": error, "csrf_token": get_csrf_token(request)},
     )
 
 
-@router.post("/2fa/verificar")
-async def totp_verify_submit(request: Request, code: str = Form(...), csrf_token: str = Form(...)):
+@router.post("/configurar-correo")
+async def configurar_correo_submit(
+    request: Request,
+    email: str = Form(...),
+    confirmar_email: str = Form(...),
+    csrf_token: str = Form(...),
+):
     session_csrf = request.session.get("csrf_token")
     user = _pending_user(request)
     if not user or not constant_time_eq(csrf_token, session_csrf or ""):
+        return RedirectResponse(url="/login")
+
+    email = email.strip().lower()
+    if email != confirmar_email.strip().lower() or not email_is_valid(email):
+        return templates.TemplateResponse(
+            "configurar_correo.html",
+            {"request": request, "error": "Los correos no coinciden o no son validos.", "csrf_token": get_csrf_token(request)},
+            status_code=400,
+        )
+
+    set_email(user["id"], email)
+    fresh = get_user_by_id(user["id"])
+    err = _send_login_code(request, fresh)
+    if err:
+        return templates.TemplateResponse(
+            "configurar_correo.html",
+            {"request": request, "error": err, "csrf_token": get_csrf_token(request)},
+            status_code=502,
+        )
+    return RedirectResponse(url="/verificar-codigo", status_code=303)
+
+
+@router.get("/verificar-codigo")
+async def verificar_codigo_page(request: Request, error: str | None = None):
+    user = _pending_user(request)
+    if not user or not request.session.get("pending_otp_code"):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(
+        "verificar_codigo.html",
+        {"request": request, "error": error, "email": user["email"], "csrf_token": get_csrf_token(request)},
+    )
+
+
+@router.post("/verificar-codigo")
+async def verificar_codigo_submit(request: Request, code: str = Form(...), csrf_token: str = Form(...)):
+    session_csrf = request.session.get("csrf_token")
+    user = _pending_user(request)
+    pending_code = request.session.get("pending_otp_code")
+    if not user or not pending_code or not constant_time_eq(csrf_token, session_csrf or ""):
         return RedirectResponse(url="/login")
 
     if is_locked(user):
         request.session.pop("pending_user_id", None)
         return RedirectResponse(url="/login?error=" + "Cuenta bloqueada temporalmente.")
 
-    if not verify_totp(user["totp_secret"], code):
+    expires_raw = request.session.get("pending_otp_expires")
+    expired = not expires_raw or datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(expires_raw)
+
+    if expired or not constant_time_eq(code.strip(), pending_code):
         register_failed_attempt(user["id"])
         return templates.TemplateResponse(
-            "2fa_verify.html",
-            {"request": request, "error": "Codigo incorrecto.", "csrf_token": get_csrf_token(request)},
+            "verificar_codigo.html",
+            {"request": request, "error": "Codigo incorrecto o vencido.", "email": user["email"], "csrf_token": get_csrf_token(request)},
             status_code=401,
         )
 
     return _finish_login(request, user)
+
+
+@router.post("/verificar-codigo/reenviar")
+async def verificar_codigo_reenviar(request: Request, csrf_token: str = Form(...)):
+    session_csrf = request.session.get("csrf_token")
+    user = _pending_user(request)
+    if not user or not constant_time_eq(csrf_token, session_csrf or ""):
+        return RedirectResponse(url="/login")
+
+    err = _send_login_code(request, user)
+    return templates.TemplateResponse(
+        "verificar_codigo.html",
+        {
+            "request": request,
+            "error": err,
+            "ok": None if err else "Se envio un nuevo codigo.",
+            "email": user["email"],
+            "csrf_token": get_csrf_token(request),
+        },
+    )
 
 
 @router.get("/logout")

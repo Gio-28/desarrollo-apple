@@ -43,17 +43,24 @@ def count_admins() -> int:
         return cur.fetchone()["n"]
 
 
-def create_user(username: str, password: str, is_admin: bool, created_by: str | None) -> dict:
+def create_user(username: str, password: str, is_admin: bool, created_by: str | None, email: str = "") -> dict:
     ensure_db()
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """INSERT INTO users (username, password_hash, is_admin, must_change_password, created_by)
-               VALUES (%s, %s, %s, TRUE, %s) RETURNING *""",
-            (username, hash_password(password), is_admin, created_by),
+            """INSERT INTO users (username, password_hash, is_admin, email, must_change_password, created_by)
+               VALUES (%s, %s, %s, %s, TRUE, %s) RETURNING *""",
+            (username, hash_password(password), is_admin, email or None, created_by),
         )
         row = cur.fetchone()
         conn.commit()
         return row
+
+
+def set_email(user_id: int, email: str) -> None:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE users SET email = %s WHERE id = %s", (email, user_id))
+        conn.commit()
 
 
 def delete_user(user_id: int) -> None:
@@ -79,16 +86,6 @@ def set_password(user_id: int, new_password: str) -> None:
         cur.execute(
             "UPDATE users SET password_hash = %s, must_change_password = FALSE WHERE id = %s",
             (hash_password(new_password), user_id),
-        )
-        conn.commit()
-
-
-def set_totp_secret(user_id: int, secret: str) -> None:
-    ensure_db()
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE users SET totp_secret = %s, totp_enabled = TRUE WHERE id = %s",
-            (secret, user_id),
         )
         conn.commit()
 

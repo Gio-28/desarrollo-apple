@@ -6,8 +6,8 @@ cuenta (usuario + contraseña + verificacion en dos pasos), administrado desde u
 
 ## Como funciona
 
-1. **Login**: usuario + contraseña + codigo de verificacion en dos pasos (TOTP, compatible
-   con Google Authenticator / Authy). Solo entra quien tenga una cuenta creada por un
+1. **Login**: usuario + contraseña + codigo de verificacion en dos pasos enviado por correo
+   (6 digitos, valido 10 minutos). Solo entra quien tenga una cuenta creada por un
    administrador — no hay registro publico.
 2. **Crear contrato** → se pega el texto con los datos del cliente y la reserva, una linea
    por dato con el formato `Etiqueta: valor` (hay un boton "Usar plantilla" que llena el
@@ -30,8 +30,9 @@ Como se manejan datos sensibles de clientes, el login tiene varias capas:
 
 - **Contraseñas** con hash bcrypt (nunca se guardan en texto plano), minimo 10 caracteres
   combinando mayusculas/minusculas/numeros/simbolos.
-- **Verificacion en dos pasos (2FA/TOTP) obligatoria** para todas las cuentas — se activa
-  la primera vez que cada persona inicia sesion, escaneando un codigo QR con su celular.
+- **Verificacion en dos pasos por correo obligatoria** para todas las cuentas — cada login
+  envia un codigo de 6 digitos (valido 10 minutos) al correo de esa persona. La primera vez,
+  cada cuenta configura su propio correo antes de poder entrar.
 - **Bloqueo automatico de cuenta** tras 5 intentos fallidos (15 minutos), tanto en la
   contraseña como en el codigo de 2FA.
 - **Cambio de contraseña obligatorio** en el primer ingreso (las cuentas nuevas y los
@@ -59,8 +60,19 @@ Cuentas: **GitHub**, **Vercel** y **Dropbox Sign** (ya las tienes). Ademas:
 ### 2. Base de datos
 
 En Vercel, el proyecto ya tiene conectada una base de datos Postgres (Neon, plan gratuito)
-que guarda los usuarios y sus claves TOTP. La variable `DATABASE_URL` la inyecta Vercel
-automaticamente — no hay que configurarla a mano en producción.
+que guarda los usuarios. La variable `DATABASE_URL` la inyecta Vercel automaticamente — no
+hay que configurarla a mano en producción.
+
+### 3. Correo para los codigos de verificacion (SMTP)
+
+Se necesita una cuenta de correo que el sistema use para enviar los codigos de 2FA:
+
+1. Genera una **contraseña de aplicacion** de esa cuenta (no la contraseña normal):
+   - Gmail/Google Workspace: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (requiere verificacion en dos pasos activada en esa cuenta).
+   - Microsoft 365: [mysignins.microsoft.com/security-info](https://mysignins.microsoft.com/security-info) → Agregar metodo → Contraseña de aplicacion.
+2. Guarda `SMTP_USER` (el correo), `SMTP_PASSWORD` (la contraseña de aplicacion), y ajusta
+   `SMTP_HOST`/`SMTP_PORT` si no es Gmail (por defecto: `smtp.gmail.com:587`; Microsoft 365
+   es `smtp.office365.com:587`).
 
 ## Configuracion local
 
@@ -107,9 +119,10 @@ tabla de usuarios esta vacia).
 api/index.py                        entrypoint que usa Vercel
 app/main.py                         arma la app FastAPI (sesiones, cabeceras de seguridad, rutas)
 app/db.py                           conexion a Postgres + creacion de tabla de usuarios
-app/security.py                     hash de contraseñas, TOTP, CSRF, bloqueo de cuenta
+app/security.py                     hash de contraseñas, codigos OTP, CSRF, bloqueo de cuenta
 app/auth.py                         acceso a datos de usuarios + sesion
-app/routes/auth_routes.py           login, cambio de clave forzado, configuracion/verificacion 2FA
+app/services/email_client.py        envia el codigo de verificacion por correo (SMTP)
+app/routes/auth_routes.py           login, cambio de clave forzado, correo/codigo de verificacion
 app/routes/admin_routes.py          panel de administracion de usuarios
 app/documents/                      un modulo por cada tipo de documento
   contrato_turismo/

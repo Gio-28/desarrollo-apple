@@ -1,12 +1,13 @@
 import datetime
+import re
 import secrets
 
 import bcrypt
-import pyotp
 
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 MIN_PASSWORD_LENGTH = 10
+OTP_TTL_MINUTES = 10
 
 
 def hash_password(password: str) -> str:
@@ -41,19 +42,15 @@ def generate_temp_password() -> str:
     return secrets.token_urlsafe(12)
 
 
-def new_totp_secret() -> str:
-    return pyotp.random_base32()
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def totp_provisioning_uri(secret: str, username: str, issuer: str = "Apple Travel Contratos") -> str:
-    return pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name=issuer)
+def email_is_valid(email: str) -> bool:
+    return bool(_EMAIL_RE.match((email or "").strip()))
 
 
-def verify_totp(secret: str, code: str) -> bool:
-    if not secret or not code:
-        return False
-    code = code.strip().replace(" ", "")
-    return pyotp.TOTP(secret).verify(code, valid_window=1)
+def generate_otp_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def is_locked(user: dict) -> bool:
