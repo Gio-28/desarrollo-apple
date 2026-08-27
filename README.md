@@ -1,20 +1,26 @@
 # Creador de contratos - Apple Travel
 
-Herramienta interna: pega los datos del cliente (una linea por dato, con etiquetas), revisa
-el contrato, y se envia automaticamente a firma por Dropbox Sign. Acceso restringido por
-cuenta (usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
+Herramienta interna: pega los datos de la reserva (desde la hoja de seguimiento, o a mano),
+revisa el contrato, y se envia automaticamente a firma por Dropbox Sign. Acceso restringido
+por cuenta (usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
 
 ## Como funciona
 
 1. **Login**: usuario + contraseña + codigo de verificacion en dos pasos enviado por correo
    (6 digitos, valido 10 minutos). Solo entra quien tenga una cuenta creada por un
    administrador — no hay registro publico.
-2. **Crear contrato** → se pega el texto con los datos del cliente y la reserva, una linea
-   por dato con el formato `Etiqueta: valor` (hay un boton "Usar plantilla" que llena el
-   formato de ejemplo). El orden de las lineas no importa; las etiquetas de lista (Pago,
-   Pasajero, Adicional, Incluye, No incluye) se pueden repetir varias veces.
+2. **Crear contrato** → se pega el texto con los datos del cliente y la reserva. Se aceptan
+   dos formatos, detectados automaticamente:
+   - **Hoja de calculo**: la fila de la hoja interna de seguimiento de reservas (copiada tal
+     cual desde Excel/Sheets, con o sin la fila de encabezados), seguida de lineas sueltas
+     para los pasajeros (`Nombre - CC 123...`), el texto de incluye / no incluye del programa
+     (la palabra "no incluye" sola en una linea marca donde empieza esa seccion), y al final
+     el correo del asesor en su propia linea.
+   - **Etiquetas**: una linea por dato, `Etiqueta: valor` (hay un boton "Usar plantilla" con
+     el formato de ejemplo). El orden no importa; las etiquetas de lista (Pago, Pasajero,
+     Adicional, Incluye, No incluye) se pueden repetir varias veces.
 3. Un parser propio (sin IA, sin servicios externos, `app/documents/contrato_turismo/text_parser.py`)
-   interpreta esas lineas y las ordena en los campos del contrato. Si falta algo obligatorio,
+   interpreta ese texto y lo ordena en los campos del contrato. Si falta algo obligatorio,
    no deja continuar.
 4. Se muestra una **vista previa** de lo extraido. Se puede **editar** cualquier dato.
 5. Al darle **Enviar a firma**, se rellena la plantilla Word original (`app/documents/contrato_turismo/template.docx`,
@@ -127,7 +133,7 @@ app/routes/admin_routes.py          panel de administracion de usuarios
 app/documents/                      un modulo por cada tipo de documento
   contrato_turismo/
     schema.py                       campos del contrato + que es obligatorio
-    text_parser.py                  interpreta el texto pegado (etiqueta: valor), sin IA
+    text_parser.py                  interpreta el texto pegado (hoja de calculo o etiquetas), sin IA
     filler.py                       rellena template.docx con python-docx
     template.docx                   plantilla Word original (no tocar a mano)
 app/services/
