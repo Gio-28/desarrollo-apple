@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Usuarios - Apple Travel{% endblock %}
+{% block content %}
+<div class="home-wrap">
+  <h1>Usuarios</h1>
+  <p class="muted">Crea y administra las cuentas de acceso al sistema.</p>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="alert alert-ok">{{ ok }}</div>
+  {% endif %}
+
+  {% if nueva_clave %}
+  <div class="alert alert-ok">
+    <strong>{{ "Contraseña reiniciada" if reseteo else "Usuario creado" }}: {{ nuevo_usuario }}</strong><br />
+    Contraseña temporal (comunicasela de forma segura, se pedira cambiarla al primer ingreso):
+    <code class="secret-code">{{ nueva_clave }}</code>
+  </div>
+  {% endif %}
+
+  <div class="edit-card">
+    <h2>Crear usuario</h2>
+    <form method="post" action="/admin/usuarios" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="form-field">
+        <span>Nombre de usuario</span>
+        <input type="text" name="username" required />
+      </label>
+      <label class="checkbox-field">
+        <input type="checkbox" name="es_admin" value="1" />
+        <span>Es administrador</span>
+      </label>
+      <button type="submit" class="btn-primary">Crear usuario</button>
+    </form>
+  </div>
+
+  <div class="edit-card">
+    <h2>Cuentas existentes</h2>
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Rol</th>
+          <th>2FA</th>
+          <th>Estado</th>
+          <th>Creado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ "Administrador" if u.is_admin else "Asesor" }}</td>
+          <td>{{ "Activo" if u.totp_enabled else "Pendiente" }}</td>
+          <td>{{ "Bloqueada" if u.locked_until else "OK" }}</td>
+          <td>{{ u.created_at.strftime("%Y-%m-%d") }}</td>
+          <td class="users-actions">
+            <form method="post" action="/admin/usuarios/{{ u.id }}/resetear-clave" onsubmit="return confirm('¿Reiniciar la contraseña de ' + '{{ u.username }}' + '?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button type="submit" class="btn-link">Reiniciar clave</button>
+            </form>
+            {% if u.id != user.id %}
+            <form method="post" action="/admin/usuarios/{{ u.id }}/eliminar" onsubmit="return confirm('¿Eliminar a ' + '{{ u.username }}' + '? Esta accion no se puede deshacer.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button type="submit" class="btn-link btn-link-danger">Eliminar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -34,7 +34,17 @@ a { color: inherit; }
 .brand-logo { height: 42px; display: block; }
 
 .user-box { display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--ink-soft); }
-.btn-link { color: var(--gold); text-decoration: none; font-weight: 600; }
+.btn-link {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
 .btn-link:hover { text-decoration: underline; }
 
 .page {
@@ -60,20 +70,62 @@ h2 { font-size: 16px; margin: 0 0 12px; color: var(--ink); }
   width: 100%;
 }
 .login-logo { height: 56px; margin-bottom: 20px; }
-.btn-google {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 20px;
-  padding: 12px 20px;
+.login-card-wide { max-width: 440px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; text-align: left; }
+.auth-form .form-field input { padding: 11px 12px; font-size: 15px; }
+.btn-block { width: 100%; text-align: center; }
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.alert-ok {
+  background: #eaf6ec;
+  color: #1f6d33;
+  border: 1px solid #bfe3c6;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+
+.qr-box {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 10px;
+  padding: 12px;
+  background: white;
   border: 1px solid var(--border);
   border-radius: 8px;
-  text-decoration: none;
-  color: var(--ink);
-  font-weight: 600;
-  background: white;
 }
-.btn-google:hover { border-color: var(--gold); }
+.qr-box svg { width: 200px; height: 200px; }
+
+.secret-code {
+  display: block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  word-break: break-all;
+  margin: 8px 0 4px;
+}
+
+.inline-form { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.checkbox-field { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-soft); }
+
+.users-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+.users-table th, .users-table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+.users-table th { color: var(--ink-soft); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+.users-actions { display: flex; gap: 10px; }
+.users-actions form { display: inline; }
+.btn-link-danger { color: #b23b2e; }
 
 /* ---------- home ---------- */
 .cards-grid {

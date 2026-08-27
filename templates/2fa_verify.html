@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Verificacion en dos pasos - Apple Travel{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
+    <h1>Verificacion en dos pasos</h1>
+    <p class="muted">Ingresa el codigo de 6 digitos de tu app de autenticacion.</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/2fa/verificar" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="form-field">
+        <span>Codigo de 6 digitos</span>
+        <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code" />
+      </label>
+      <button type="submit" class="btn-primary btn-block">Verificar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -13,7 +13,10 @@
     </a>
     {% if user %}
     <div class="user-box">
-      <span class="user-name">{{ user.name }}</span>
+      <span class="user-name">{{ user.username }}</span>
+      {% if user.is_admin %}
+      <a href="/admin/usuarios" class="btn-link">Usuarios</a>
+      {% endif %}
       <a href="/logout" class="btn-link">Cerrar sesion</a>
     </div>
     {% endif %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Cambiar contraseña - Apple Travel{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
+    <h1>Crea tu contraseña</h1>
+    <p class="muted">Por seguridad, debes establecer una contraseña propia antes de continuar.</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-ok">Contraseña actualizada correctamente.</div>
+    {% endif %}
+
+    <form method="post" action="/cambiar-clave" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <label class="form-field">
+        <span>Nueva contraseña</span>
+        <input type="password" name="password" required autocomplete="new-password" minlength="10" />
+      </label>
+      <label class="form-field">
+        <span>Confirmar contraseña</span>
+        <input type="password" name="confirmar" required autocomplete="new-password" minlength="10" />
+      </label>
+      <p class="tiny muted">Minimo 10 caracteres, combinando mayusculas, minusculas, numeros o simbolos.</p>
+
+      <button type="submit" class="btn-primary btn-block">Guardar y continuar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
