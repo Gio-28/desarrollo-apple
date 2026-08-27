@@ -289,6 +289,20 @@ h2 { font-size: 16px; margin: 0 0 12px; color: var(--ink); }
   font-weight: 600;
 }
 
+/* tiquetes upload */
+.dropzone {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 22px;
+  text-align: center;
+  transition: border-color .15s, background .15s;
+}
+.dropzone.dragover { border-color: var(--gold); background: rgba(200, 162, 76, 0.08); }
+#tiquetes-empty p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; }
+#tiquetes-preview { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+#tiquetes-preview[hidden], #tiquetes-empty[hidden] { display: none; }
+#tiquetes-preview img { max-width: 100%; max-height: 260px; border-radius: 8px; border: 1px solid var(--border); }
+
 /* success */
 .success-box { text-align: center; padding: 60px 20px; }
 .success-icon {

@@ -13,16 +13,21 @@ revisa el contrato, y lo descarga en Word listo para firmar. Acceso restringido 
    dos formatos, detectados automaticamente:
    - **Hoja de calculo**: la fila de la hoja interna de seguimiento de reservas (copiada tal
      cual desde Excel/Sheets, con o sin la fila de encabezados), seguida de lineas sueltas
-     para los pasajeros (`Nombre - CC 123...`), el texto de incluye / no incluye del programa
-     (la palabra "no incluye" sola en una linea marca donde empieza esa seccion), y al final
-     el correo del asesor en su propia linea.
+     para los pasajeros (`Nombre - CC 123...`), opcionalmente la habitacion
+     (`Habitacion: Estandar`), el texto de incluye / no incluye del programa (la palabra
+     "no incluye" sola en una linea marca donde empieza esa seccion), y opcionalmente el
+     itinerario dia a dia (la palabra "Itinerario" sola en su linea marca donde empieza,
+     y toma el resto del texto).
    - **Etiquetas**: una linea por dato, `Etiqueta: valor` (hay un boton "Usar plantilla" con
      el formato de ejemplo). El orden no importa; las etiquetas de lista (Pago, Pasajero,
-     Adicional, Incluye, No incluye) se pueden repetir varias veces.
+     Adicional, Incluye, No incluye, Itinerario) se pueden repetir varias veces (excepto
+     Itinerario, que toma todo el texto siguiente).
 3. Un parser propio (sin IA, sin servicios externos, `app/documents/contrato_turismo/text_parser.py`)
    interpreta ese texto y lo ordena en los campos del contrato. Si falta algo obligatorio,
    no deja continuar.
-4. Se muestra una **vista previa** de lo extraido. Se puede **editar** cualquier dato.
+4. Se muestra una **vista previa** de lo extraido. Se puede **editar** cualquier dato, incluida
+   la imagen de los tiquetes aereos (se arrastra o se elige un archivo; va debajo de "No
+   incluye" en el documento final) y el itinerario.
 5. Al darle **Descargar contrato**, se rellena la plantilla Word original
    (`app/documents/contrato_turismo/template.docx`, sin tocar logos, tablas ni clausulas) y se
    descarga en `.docx`, listo para revisar y enviar a firma por el medio que prefieran.
@@ -149,8 +154,8 @@ templates/, static/                 la interfaz (HTML + CSS + JS simple, sin fra
 2. Registra un `DocumentType` en `app/documents/__init__.py` (una linea, siguiendo el
    ejemplo de `contrato_turismo`).
 3. Automaticamente aparece como tarjeta en la pagina principal, con sus propias rutas
-   `/crear/<slug>`, `/api/<slug>/parse` y `/api/<slug>/generar` — no hay que tocar login,
-   diseño ni el flujo de pegar/revisar/enviar.
+   `/crear/<slug>`, `/api/<slug>/parse` y `/api/<slug>/descargar` — no hay que tocar login,
+   diseño ni el flujo de pegar/revisar/descargar.
 
 ## Limitaciones conocidas
 
@@ -161,8 +166,7 @@ templates/, static/                 la interfaz (HTML + CSS + JS simple, sin fra
   externo de conversion. Pasar de Word a PDF a mano toma segundos (Word/Google Docs
   tienen "Guardar como PDF" integrado).
 - El envio automatico a firma por Dropbox Sign esta implementado pero desactivado (requiere
-  un plan de API de pago); el texto tiene incrustado el "text tag" `[sig|req|signer1]` para
-  cuando se reactive.
+  un plan de API de pago).
 - No hay proteccion tipo CAPTCHA visible (Cloudflare Turnstile, etc.) — se uso honeypot +
   bloqueo por intentos en su lugar para no depender de otra cuenta/servicio externo. Si el
   trafico de bots se vuelve un problema, es facil agregarlo mas adelante.

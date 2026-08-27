@@ -15,8 +15,9 @@
     <p class="muted">
       Pega directamente la fila de tu hoja de seguimiento de reservas (con o sin encabezados),
       seguida de los pasajeros acompañantes ("Nombre - CC 123..."), opcionalmente la habitacion
-      ("Habitacion: Estandar"), el programa incluye / no incluye, y por ultimo el correo del
-      asesor en su propia linea. El sistema reconoce ese formato automaticamente.
+      ("Habitacion: Estandar"), el programa incluye / no incluye, y si aplica el itinerario
+      ("Itinerario" seguido de los dias). El sistema reconoce ese formato automaticamente. La
+      imagen de los tiquetes aereos se adjunta en el siguiente paso.
     </p>
     <p class="muted">
       Tambien puedes escribir los datos a mano con el formato <strong>Etiqueta: valor</strong>
@@ -28,7 +29,6 @@
     </div>
 
     <textarea id="paste-textarea" rows="18" placeholder="Asesor: Juan Perez
-Asesor correo: juan.perez@appletravel.com.co
 Cliente: Maria Gomez
 Cedula: 1020304050
 Telefono: 3001234567
@@ -54,7 +54,9 @@ Pasajero: Carlos Gomez - 1020304051
 Adicional: Carlos Gomez - 1020304051
 Incluye: Tiquetes aereos ida y regreso
 Incluye: Hotel todo incluido
-No incluye: Gastos personales"></textarea>
+No incluye: Gastos personales
+Itinerario: Dia 1: Llegada y traslado al hotel.
+Dia 2: Dia libre para actividades opcionales."></textarea>
 
     <div class="error-box" id="paste-error" hidden></div>
 

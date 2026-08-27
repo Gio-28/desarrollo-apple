@@ -9,13 +9,14 @@ Este modulo conoce la estructura EXACTA de esas celdas (fue inspeccionada a mano
 si algun dia se edita el template.docx en Word, estos indices deben revisarse.
 """
 
+import base64
 import copy
 import datetime
 from io import BytesIO
 from pathlib import Path
 
 import docx
-from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Inches
 from docx.table import Table, _Cell
@@ -29,8 +30,6 @@ MESES_ES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
-
-PASAJERO_TAB_STOP = Inches(3.4)
 
 
 # --------------------------------------------------------------------------
@@ -210,13 +209,13 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     # "RESERVADO A" (fila 1) y antes de "HOTEL / CHECK IN / CHECK OUT" (fila 2 original).
     # ojo con los indices: cada insercion corre las filas siguientes, por eso el
     # template_row_index de cada paso se recalcula segun el estado DESPUES del paso anterior.
-    _clone_row_after(res_table, template_row_index=0, after_row_index=1)  # -> HABITACION en indice 2
-    _clone_row_after(res_table, template_row_index=4, after_row_index=2)  # -> PAGOS header en indice 3
-    _clone_row_after(res_table, template_row_index=0, after_row_index=3)  # -> PAGOS valores en indice 4
+    _clone_row_after(res_table, template_row_index=0, after_row_index=1)  # -> HABITACION en indice 2 (patron 2 celdas)
+    _clone_row_after(res_table, template_row_index=4, after_row_index=2)  # -> PAGOS header en indice 3 (patron 1 celda)
+    _clone_row_after(res_table, template_row_index=4, after_row_index=3)  # -> PAGOS valores en indice 4 (patron HOTEL, 3 celdas)
 
     # las filas originales HOTEL/CHECKIN/CHECKOUT y DATOS DE PASAJEROS ahora quedaron
-    # corridas 3 posiciones (se insertaron 3 filas nuevas antes de ellas)
-    # cells[1] de estas filas se clono del patron "FECHA" (2 parrafos: etiqueta + valor);
+    # corridas 3 posiciones (se insertaron 3 filas nuevas antes de ellas).
+    # cells[1] de esta fila se clono del patron "FECHA" (2 parrafos: etiqueta + valor);
     # se usa el primer parrafo para el texto y se ELIMINA el segundo (si no, queda una
     # linea en blanco sobrante en la celda).
     row_habitacion = res_table.rows[2]
@@ -228,46 +227,81 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     row_pagos_header = res_table.rows[3]
     _set_cell_text(row_pagos_header.cells[0], "PAGOS")
 
+    # fila de PAGOS-valores: se clona del patron de HOTEL/CHECKIN/CHECKOUT (3 celdas reales,
+    # no una sola combinada), asi cada valor queda en su propia casilla separada.
     row_pagos_valores = res_table.rows[4]
     _set_cell_text(row_pagos_valores.cells[0], f"VALOR TOTAL: $ {data.valor_total}")
-    _set_cell_text(
-        row_pagos_valores.cells[1],
-        f"VALOR ABONADO: $ {data.valor_abonado}          VALOR RESTANTE: $ {data.valor_restante}",
-        paragraph_index=0,
-    )
-    if len(row_pagos_valores.cells[1].paragraphs) > 1:
-        _remove_paragraph(row_pagos_valores.cells[1].paragraphs[1])
+    _set_cell_text(row_pagos_valores.cells[2], f"VALOR ABONADO: $ {data.valor_abonado}")
+    _set_cell_text(row_pagos_valores.cells[3], f"VALOR RESTANTE: $ {data.valor_restante}")
 
-    row2 = res_table.rows[5]
-    _append_to_last_run(row2.cells[0].paragraphs[0], data.hotel)
-    _set_cell_text(row2.cells[2], f"CHECK IN: {data.check_in}")
-    _set_cell_text(row2.cells[3], f"CHECK OUT: {data.check_out}")
+    row_hotel = res_table.rows[5]
+    _set_cell_text(row_hotel.cells[0], f"HOTEL:    {data.hotel}")
+    _set_cell_text(row_hotel.cells[2], f"CHECK IN: {data.check_in}")
+    _set_cell_text(row_hotel.cells[3], f"CHECK OUT: {data.check_out}")
 
-    # fila 8: celda unica (combinada) con un parrafo por pasajero "NOMBRE [tab] Doc: XXXX"
-    pax_row = res_table.rows[8]
-    cell = pax_row.cells[0]
-    existing = cell.paragraphs
-    last_p = existing[-1] if existing else None
-    pasajeros = data.pasajeros_reserva
+    # fila 8 (DATOS DE LOS PASAJEROS: NOMBRE, en indice 7) es la plantilla de encabezado con
+    # 2 celdas reales (NOMBRE | DOCUMENTO). Se elimina la fila original combinada de un solo
+    # pasajero y se clona una fila real de 2 celdas por cada pasajero, en su lugar.
+    tbl = res_table._tbl
+    tbl.remove(tbl.tr_lst[8])
 
-    while len(existing) < len(pasajeros):
-        last_p = _insert_paragraph_after(last_p, "")
-        existing = cell.paragraphs
-
-    for i, p in enumerate(existing):
-        p.paragraph_format.tab_stops.clear_all()
-        p.paragraph_format.tab_stops.add_tab_stop(PASAJERO_TAB_STOP, WD_TAB_ALIGNMENT.LEFT)
-        if i < len(pasajeros):
-            pax = pasajeros[i]
-            _set_paragraph_text(p, f"{pax.nombre}\tDoc: {pax.documento}")
-        else:
-            _set_paragraph_text(p, "")
+    last_index = 7
+    for pax in data.pasajeros_reserva:
+        _clone_row_after(res_table, template_row_index=7, after_row_index=last_index)
+        last_index += 1
+        new_row = res_table.rows[last_index]
+        _set_cell_text(new_row.cells[0], pax.nombre)
+        _set_cell_text(new_row.cells[2], pax.documento)
 
 
 def _fill_incluye_no_incluye(tables: list[Table], data: ContratoTurismo) -> None:
     incluye_table, no_incluye_table = tables[5], tables[6]
     _fill_multiline_cell(incluye_table.rows[1].cells[0], data.incluye)
     _fill_multiline_cell(no_incluye_table.rows[1].cells[0], data.no_incluye)
+
+
+def _decode_data_uri(data_uri: str) -> bytes | None:
+    if "," in data_uri:
+        data_uri = data_uri.split(",", 1)[1]
+    try:
+        return base64.b64decode(data_uri)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
+    """Agrega, al final del documento (despues de "NO INCLUYE"), el itinerario en texto
+    y/o la captura de los tiquetes aereos, si se proporcionaron. Ninguno de los dos
+    existe en la plantilla original: se insertan como parrafos nuevos."""
+    anchor = doc.tables[6]._tbl  # tabla "EL PROGRAMA NO INCLUYE", ultimo bloque de la plantilla
+
+    def _paragraph_after(after_element, center: bool = False):
+        p = doc.add_paragraph()
+        after_element.addnext(p._p)
+        if center:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        return p
+
+    if data.itinerario.strip():
+        title_p = _paragraph_after(anchor, center=True)
+        title_p.add_run("ITINERARIO").bold = True
+        anchor = title_p._p
+        for line in data.itinerario.split("\n"):
+            body_p = _paragraph_after(anchor)
+            if line.strip():
+                body_p.add_run(line)
+            anchor = body_p._p
+
+    if data.tiquetes_imagen.strip():
+        image_bytes = _decode_data_uri(data.tiquetes_imagen)
+        if image_bytes:
+            title_p = _paragraph_after(anchor, center=True)
+            title_p.add_run("Tiquetes aéreos").bold = True
+            anchor = title_p._p
+
+            img_p = _paragraph_after(anchor, center=True)
+            img_p.add_run().add_picture(BytesIO(image_bytes), width=Inches(5.5))
+            anchor = img_p._p
 
 
 # --------------------------------------------------------------------------
@@ -284,6 +318,7 @@ def fill_contract(data: ContratoTurismo) -> bytes:
     _fill_signature_block(doc, data)
     _fill_reservation_table(tables, data)
     _fill_incluye_no_incluye(tables, data)
+    _fill_itinerario_y_tiquetes(doc, data)
     _replace_everywhere(doc, "T-XXX", data.confirmacion_reserva)
 
     buffer = BytesIO()

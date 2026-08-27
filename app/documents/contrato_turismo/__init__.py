@@ -14,10 +14,6 @@ def _document_title(data: ContratoTurismo) -> str:
     return data.confirmacion_reserva
 
 
-def _cc(data: ContratoTurismo) -> list[str]:
-    return [data.asesor_correo] if data.asesor_correo else []
-
-
 def register_contrato_turismo() -> None:
     register(
         DocumentType(
@@ -31,6 +27,5 @@ def register_contrato_turismo() -> None:
             signer_fn=_signer,
             missing_fields_fn=missing_fields,
             document_title_fn=_document_title,
-            cc_fn=_cc,
         )
     )

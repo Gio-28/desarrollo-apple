@@ -6,8 +6,9 @@ Soporta DOS formatos, detectados automaticamente:
 1) "Hoja de calculo": el asesor pega (con Ctrl+C/Ctrl+V desde Excel/Sheets) la fila de
    su hoja de seguimiento de reservas -- con o sin la fila de encabezados encima -- y
    debajo, en lineas sueltas: los pasajeros acompañantes ("Nombre - CC 123"), opcionalmente
-   la habitacion ("Habitacion: Estandar"), que incluye / no incluye el programa, y por
-   ultimo el correo del asesor solo en su propia linea.
+   la habitacion ("Habitacion: Estandar"), que incluye / no incluye el programa, y
+   opcionalmente el itinerario dia a dia (la palabra "Itinerario" sola en su linea marca
+   donde empieza esa seccion, que se toma hasta el final del texto).
    Las columnas de la hoja se identifican por POSICION (ver COL_* abajo), porque la hoja
    siempre tiene el mismo formato interno de la agencia.
 
@@ -64,7 +65,6 @@ _PASAJERO_RE = re.compile(
     r"^\s*(?P<nombre>.+?)\s*-\s*c\.?\s*c\.?\s*[:.]?\s*(?P<doc>[\d.]{4,})\s*$", re.IGNORECASE
 )
 _HABITACION_RE = re.compile(r"^\s*habitaci[oó]n\s*:?\s*(?P<valor>.+)$", re.IGNORECASE)
-_EMAIL_LINE_RE = re.compile(r"^\s*[^@\s]+@[^@\s]+\.[^@\s]+\s*$")
 _BULLET_RE = re.compile(r"^[\s•\-\*•]+")
 _DDMMYYYY_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
 
@@ -177,36 +177,54 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
     acompanantes: list[dict] = []
     incluye_lines: list[str] = []
     no_incluye_lines: list[str] = []
-    asesor_correo = ""
+    itinerario_lines: list[str] = []
     habitacion = ""
 
-    remaining = [l for l in lines[row_idx + 1 :] if l.strip()]
+    tail_lines = lines[row_idx + 1 :]
+
+    # 1) lineas de pasajeros acompañantes, consecutivas al inicio (se ignoran lineas vacias
+    # de por medio, pero preservamos el resto de tail_lines intacto para el itinerario)
     i = 0
-    # 1) lineas de pasajeros acompañantes, consecutivas al inicio
-    while i < len(remaining):
-        m = _PASAJERO_RE.match(remaining[i])
+    while i < len(tail_lines):
+        stripped = tail_lines[i].strip()
+        if not stripped:
+            i += 1
+            continue
+        m = _PASAJERO_RE.match(stripped)
         if not m:
             break
         acompanantes.append({"nombre": m.group("nombre").strip(), "doc": m.group("doc").strip()})
         i += 1
 
-    # 2) resto: habitacion / incluye / no incluye / correo del asesor
+    # 2) resto: habitacion / incluye / no incluye / itinerario. Las lineas en blanco se
+    # descartan en incluye/no_incluye (cada item es una linea), pero se PRESERVAN dentro
+    # del itinerario para mantener los saltos de parrafo entre dias.
     section = "incluye"
-    for line in remaining[i:]:
+    for line in tail_lines[i:]:
         stripped = line.strip()
-        if stripped.lower().rstrip(":") == "no incluye":
+        if not stripped:
+            if section == "itinerario":
+                itinerario_lines.append("")
+            continue
+
+        lowered = stripped.lower().rstrip(":")
+        if lowered == "no incluye":
             section = "no_incluye"
             continue
-        m = _HABITACION_RE.match(stripped)
-        if m:
-            habitacion = m.group("valor").strip()
+        if lowered == "itinerario":
+            section = "itinerario"
             continue
-        if _EMAIL_LINE_RE.match(stripped):
-            asesor_correo = stripped
+        if section != "itinerario":
+            m = _HABITACION_RE.match(stripped)
+            if m:
+                habitacion = m.group("valor").strip()
+                continue
+
+        if section == "itinerario":
+            itinerario_lines.append(_BULLET_RE.sub("", line).rstrip())
             continue
+
         clean = _BULLET_RE.sub("", line).strip()
-        if not clean:
-            continue
         if section == "incluye":
             incluye_lines.append(clean)
         else:
@@ -222,7 +240,7 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
     data["habitacion"] = habitacion
     data["incluye"] = "\n".join(incluye_lines)
     data["no_incluye"] = "\n".join(no_incluye_lines)
-    data["asesor_correo"] = asesor_correo
+    data["itinerario"] = "\n".join(itinerario_lines).strip("\n")
     return data
 
 
@@ -234,10 +252,6 @@ SCALAR_LABELS = {
     "asesor": "asesor_comercial",
     "asesor comercial": "asesor_comercial",
     "asesora": "asesor_comercial",
-    "asesor correo": "asesor_correo",
-    "correo asesor": "asesor_correo",
-    "correo del asesor": "asesor_correo",
-    "email asesor": "asesor_correo",
     "cliente": "cliente_nombre",
     "nombre": "cliente_nombre",
     "nombre cliente": "cliente_nombre",
@@ -302,6 +316,7 @@ LIST_LABELS = {
     "viajero": "pasajeros",
     "incluye": "incluye",
     "no incluye": "no_incluye",
+    "itinerario": "itinerario",
 }
 
 _LINE_RE = re.compile(r"^\s*([^:]{2,40}?)\s*:\s*(.+?)\s*$")
@@ -330,8 +345,16 @@ def _parse_labeled_format(text: str) -> dict:
     adicionales: list[dict] = []
     incluye_lines: list[str] = []
     no_incluye_lines: list[str] = []
+    itinerario_lines: list[str] = []
+    in_itinerario = False
 
     for raw_line in text.splitlines():
+        # una vez que empieza "Itinerario:", el resto del texto se toma completo
+        # (dia a dia, con saltos de linea), sin exigir "Etiqueta: valor" por linea.
+        if in_itinerario:
+            itinerario_lines.append(raw_line.rstrip())
+            continue
+
         match = _LINE_RE.match(raw_line)
         if not match:
             continue
@@ -362,6 +385,9 @@ def _parse_labeled_format(text: str) -> dict:
                 incluye_lines.append(value)
             elif kind == "no_incluye":
                 no_incluye_lines.append(value)
+            elif kind == "itinerario":
+                in_itinerario = True
+                itinerario_lines.append(value)
 
     data = dict(scalars)
     data["pagos"] = pagos
@@ -371,6 +397,8 @@ def _parse_labeled_format(text: str) -> dict:
         data["incluye"] = "\n".join(incluye_lines)
     if no_incluye_lines:
         data["no_incluye"] = "\n".join(no_incluye_lines)
+    if itinerario_lines:
+        data["itinerario"] = "\n".join(itinerario_lines).strip("\n")
     return data
 
 

@@ -6,7 +6,6 @@
 
   const SCALAR_FIELDS = [
     ["asesor_comercial", "Asesor comercial"],
-    ["asesor_correo", "Correo del asesor"],
     ["cliente_nombre", "Nombre del cliente"],
     ["cliente_cedula", "Cedula de ciudadania / NIT"],
     ["cliente_direccion", "Direccion"],
@@ -28,11 +27,11 @@
   ];
 
   const EMPTY_DATA = {
-    asesor_comercial: "", asesor_correo: "", cliente_nombre: "", cliente_cedula: "", cliente_direccion: "",
+    asesor_comercial: "", cliente_nombre: "", cliente_cedula: "", cliente_direccion: "",
     cliente_telefono: "", cliente_correo: "", destino: "", confirmacion_reserva: "",
     valor_total: "", valor_abonado: "", valor_restante: "", fecha_limite_pago: "", pagos: [], pasajeros_adicionales: [],
     programa: "", fecha_reserva: "", hotel: "", habitacion: "", cantidad_personas: "", check_in: "15:00", check_out: "12:00",
-    pasajeros_reserva: [], incluye: "", no_incluye: "",
+    pasajeros_reserva: [], incluye: "", no_incluye: "", itinerario: "", tiquetes_imagen: "",
   };
 
   let state = { data: structuredClone(EMPTY_DATA) };
@@ -132,7 +131,6 @@
     let html = "";
     html += `<div class="pv-card"><h2>Contrato</h2>`;
     html += rows("Asesor comercial", d.asesor_comercial);
-    html += rows("Correo del asesor", d.asesor_correo);
     html += rows("Cliente", d.cliente_nombre);
     html += rows("Cedula / NIT", d.cliente_cedula);
     html += rows("Direccion", d.cliente_direccion);
@@ -180,6 +178,14 @@
     html += `<div class="pv-card"><h2>Incluye</h2><p>${escapeHtml(d.incluye).replace(/\n/g, "<br/>") || "&mdash;"}</p></div>`;
     html += `<div class="pv-card"><h2>No incluye</h2><p>${escapeHtml(d.no_incluye).replace(/\n/g, "<br/>") || "&mdash;"}</p></div>`;
 
+    html += `<div class="pv-card"><h2>Tiquetes aereos</h2>`;
+    html += d.tiquetes_imagen
+      ? `<img src="${d.tiquetes_imagen}" alt="Tiquetes aereos" style="max-width:100%;border-radius:6px;" />`
+      : `<p class="muted">Sin imagen adjunta.</p>`;
+    html += `</div>`;
+
+    html += `<div class="pv-card"><h2>Itinerario</h2><p>${escapeHtml(d.itinerario).replace(/\n/g, "<br/>") || "&mdash;"}</p></div>`;
+
     document.getElementById("preview-view").innerHTML = html;
   }
 
@@ -187,7 +193,7 @@
   function renderEditForm() {
     const d = state.data;
     let html = `<div class="edit-card"><h2>Contrato</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(0, 13).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(0, 12).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;
@@ -199,7 +205,7 @@
       <button type="button" class="btn-add" data-add="adicionales">+ Agregar viajero</button></div>`;
 
     html += `<div class="edit-card"><h2>Confirmacion de reserva</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(13).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(12).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;
@@ -210,7 +216,24 @@
     html += `<div class="edit-card"><h2>Incluye</h2><textarea data-field="incluye" rows="4">${escapeHtml(d.incluye)}</textarea></div>`;
     html += `<div class="edit-card"><h2>No incluye</h2><textarea data-field="no_incluye" rows="4">${escapeHtml(d.no_incluye)}</textarea></div>`;
 
+    html += `<div class="edit-card"><h2>Tiquetes aereos</h2>
+      <div id="tiquetes-drop" class="dropzone">
+        <div id="tiquetes-empty" ${d.tiquetes_imagen ? "hidden" : ""}>
+          <p>Arrastra aqui la captura de los tiquetes, o</p>
+          <button type="button" class="btn-add" id="btn-tiquetes-elegir">Elegir imagen</button>
+          <input type="file" id="tiquetes-file" accept="image/*" hidden />
+        </div>
+        <div id="tiquetes-preview" ${d.tiquetes_imagen ? "" : "hidden"}>
+          <img id="tiquetes-img" src="${d.tiquetes_imagen || ""}" alt="Tiquetes aereos" />
+          <button type="button" class="btn-add" id="btn-tiquetes-quitar">Quitar imagen</button>
+        </div>
+      </div>
+    </div>`;
+
+    html += `<div class="edit-card"><h2>Itinerario</h2><textarea data-field="itinerario" rows="6">${escapeHtml(d.itinerario)}</textarea></div>`;
+
     document.getElementById("edit-view").innerHTML = html;
+    setupTiquetesUpload();
 
     renderDynList("dyn-pagos", "tpl-field-row-pago", d.pagos, ["fecha", "valor"], [".inp-fecha", ".inp-valor"]);
     renderDynList("dyn-adicionales", "tpl-field-row-persona", d.pasajeros_adicionales, ["nombre", "cedula"], [".inp-nombre", ".inp-doc"]);
@@ -223,6 +246,59 @@
         if (kind === "adicionales") addDynRow("dyn-adicionales", "tpl-field-row-persona");
         if (kind === "pasajeros") addDynRow("dyn-pasajeros", "tpl-field-row-persona");
       });
+    });
+  }
+
+  function setupTiquetesUpload() {
+    const drop = document.getElementById("tiquetes-drop");
+    const fileInput = document.getElementById("tiquetes-file");
+    const btnElegir = document.getElementById("btn-tiquetes-elegir");
+    const btnQuitar = document.getElementById("btn-tiquetes-quitar");
+    const empty = document.getElementById("tiquetes-empty");
+    const preview = document.getElementById("tiquetes-preview");
+    const img = document.getElementById("tiquetes-img");
+
+    function setImage(dataUrl) {
+      state.data.tiquetes_imagen = dataUrl;
+      img.src = dataUrl;
+      empty.hidden = true;
+      preview.hidden = false;
+    }
+
+    function clearImage() {
+      state.data.tiquetes_imagen = "";
+      img.src = "";
+      empty.hidden = false;
+      preview.hidden = true;
+      fileInput.value = "";
+    }
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = () => setImage(reader.result);
+      reader.readAsDataURL(file);
+    }
+
+    btnElegir.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+    btnQuitar.addEventListener("click", clearImage);
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      drop.addEventListener(evt, (e) => {
+        e.preventDefault();
+        drop.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach((evt) => {
+      drop.addEventListener(evt, (e) => {
+        e.preventDefault();
+        drop.classList.remove("dragover");
+      });
+    });
+    drop.addEventListener("drop", (e) => {
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      handleFile(file);
     });
   }
 
