@@ -66,6 +66,16 @@
   }
 
   // ---------- PASO 1: pegar y parsear ----------
+  const btnPlantilla = document.getElementById("btn-plantilla");
+  btnPlantilla.addEventListener("click", () => {
+    const textarea = document.getElementById("paste-textarea");
+    if (textarea.value.trim() && !confirm("Esto reemplaza el texto actual por la plantilla vacia. ¿Continuar?")) {
+      return;
+    }
+    textarea.value = textarea.getAttribute("placeholder");
+    textarea.focus();
+  });
+
   const btnContinuar = document.getElementById("btn-continuar");
   btnContinuar.addEventListener("click", async () => {
     const text = document.getElementById("paste-textarea").value.trim();

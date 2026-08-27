@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.auth import current_user
 from app.documents import get, list_enabled
-from app.services.claude_client import extract_structured_data
 from app.services.dropboxsign_client import send_for_signature
 from app.templating import templates
 
@@ -52,11 +51,7 @@ async def api_parse(request: Request, slug: str):
         return JSONResponse({"error": "El texto pegado esta vacio."}, status_code=400)
 
     try:
-        raw = extract_structured_data(
-            pasted_text=pasted_text,
-            system_prompt=doc_type.system_prompt,
-            schema_model=doc_type.schema_model,
-        )
+        raw = doc_type.parse_fn(pasted_text)
         data = doc_type.schema_model.model_validate(raw)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": f"No se pudo interpretar el texto: {exc}"}, status_code=422)

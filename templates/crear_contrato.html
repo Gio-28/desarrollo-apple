@@ -12,25 +12,39 @@
   <!-- PASO 1: pegar texto -->
   <section id="step-paste" class="step-panel active">
     <h1>{{ doc_type.title }}</h1>
-    <p class="muted">Pega aqui toda la informacion del cliente y la reserva, en el orden que sea. El sistema identifica automaticamente cada dato.</p>
+    <p class="muted">
+      Pega la informacion usando una linea por dato, con el formato <strong>Etiqueta: valor</strong>.
+      El orden de las lineas no importa. Los pagos, pasajeros y viajeros adicionales pueden repetirse
+      en varias lineas (una por cada uno).
+    </p>
 
-    <textarea id="paste-textarea" rows="16" placeholder="Ejemplo:
-Asesor: Juan Perez
-Cliente: Maria Gomez, CC 1020304050
-Tel: 3001234567
+    <div class="actions-row">
+      <button type="button" class="btn-secondary" id="btn-plantilla">Usar plantilla</button>
+    </div>
+
+    <textarea id="paste-textarea" rows="18" placeholder="Asesor: Juan Perez
+Cliente: Maria Gomez
+Cedula: 1020304050
+Telefono: 3001234567
 Correo: maria@correo.com
 Direccion: Calle 10 #20-30, Medellin
 Destino: Cancun
-Confirmacion reserva: APT-2026-001
-Valor total: 8.500.000
-Fecha limite de pago: 15 de septiembre
-Pagos: 20/08 abono 2.000.000, 15/09 saldo 6.500.000
+Confirmacion: APT-2026-001
+Valor total: 8500000
+Fecha limite pago: 15 de septiembre de 2026
+Pago: 20 de agosto de 2026 - 2000000
+Pago: 15 de septiembre de 2026 - 6500000
 Programa: Cancun Todo Incluido 5 noches
-Fecha del viaje: 10 al 15 de octubre
+Fecha reserva: 10 al 15 de octubre de 2026
 Hotel: Riu Cancun
-Pasajeros: Maria Gomez CC 1020304050, Carlos Gomez CC 1020304051
-Incluye: tiquetes aereos, hotel, traslados
-No incluye: gastos personales, propinas"></textarea>
+Check in: 15:00
+Check out: 12:00
+Pasajero: Maria Gomez - 1020304050
+Pasajero: Carlos Gomez - 1020304051
+Adicional: Carlos Gomez - 1020304051
+Incluye: Tiquetes aereos ida y regreso
+Incluye: Hotel todo incluido
+No incluye: Gastos personales"></textarea>
 
     <div class="error-box" id="paste-error" hidden></div>
 

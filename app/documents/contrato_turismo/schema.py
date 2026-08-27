@@ -87,20 +87,3 @@ def missing_fields(data: ContratoTurismo) -> list[str]:
                 missing.append(f"Pasajero #{i}: nombre y documento")
 
     return missing
-
-
-SYSTEM_PROMPT = """Eres un asistente que extrae datos estructurados para generar un contrato de turismo \
-de la agencia Apple Travel (Colombia), a partir de un texto pegado libremente por un asesor comercial \
-(puede venir en cualquier orden, formato, mayusculas/minusculas, como notas, chat de WhatsApp, o un formulario).
-
-Debes llamar SIEMPRE a la herramienta `extraer_datos_contrato` con los datos que logres identificar en el texto.
-
-Reglas importantes:
-- NO inventes datos que no esten en el texto. Si un campo no aparece, dejalo vacio ("" o lista vacia []).
-- "valor_total", los "valor" de cada pago, deben ser solo el monto (numeros, puntos/comas), sin el simbolo $ (ya esta impreso en la plantilla).
-- Si el texto menciona varios abonos/cuotas/pagos con sus fechas y valores, inclúyelos TODOS en la lista "pagos" (puede haber 1, 2, 3 o mas).
-- "pasajeros_reserva" debe incluir a TODOS los que viajan (incluido el cliente titular) con su nombre y documento de identidad, si estan disponibles.
-- "pasajeros_adicionales" son las personas distintas al cliente titular que tambien viajan (beneficiarios). Si el cliente viaja solo, dejar la lista vacia.
-- check_in y check_out: si no se mencionan, usa los valores por defecto 15:00 y 12:00.
-- Normaliza nombres propios a mayusculas/minusculas tipo titulo cuando sea razonable, pero no alteres cedulas, telefonos, correos ni montos.
-"""

@@ -10,7 +10,6 @@ class Settings:
     session_secret: str = os.environ.get("SESSION_SECRET", "")
     base_url: str = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
 
-    anthropic_api_key: str = os.environ.get("ANTHROPIC_API_KEY", "")
     dropbox_sign_api_key: str = os.environ.get("DROPBOX_SIGN_API_KEY", "")
 
     admin_username: str = os.environ.get("ADMIN_USERNAME", "")

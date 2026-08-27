@@ -1,18 +1,21 @@
 # Creador de contratos - Apple Travel
 
-Herramienta interna: pega los datos del cliente en cualquier orden, revisa el contrato,
-y se envia automaticamente a firma por Dropbox Sign. Acceso restringido por cuenta
-(usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
+Herramienta interna: pega los datos del cliente (una linea por dato, con etiquetas), revisa
+el contrato, y se envia automaticamente a firma por Dropbox Sign. Acceso restringido por
+cuenta (usuario + contraseña + verificacion en dos pasos), administrado desde un panel interno.
 
 ## Como funciona
 
 1. **Login**: usuario + contraseña + codigo de verificacion en dos pasos (TOTP, compatible
    con Google Authenticator / Authy). Solo entra quien tenga una cuenta creada por un
    administrador — no hay registro publico.
-2. **Crear contrato** → se pega un texto libre (WhatsApp, notas, lo que sea) con los datos
-   del cliente y la reserva.
-3. El texto se envia a **Claude (Anthropic)**, que extrae los datos y los ordena en los
-   campos del contrato. Si falta algo obligatorio, no deja continuar.
+2. **Crear contrato** → se pega el texto con los datos del cliente y la reserva, una linea
+   por dato con el formato `Etiqueta: valor` (hay un boton "Usar plantilla" que llena el
+   formato de ejemplo). El orden de las lineas no importa; las etiquetas de lista (Pago,
+   Pasajero, Adicional, Incluye, No incluye) se pueden repetir varias veces.
+3. Un parser propio (sin IA, sin servicios externos, `app/documents/contrato_turismo/text_parser.py`)
+   interpreta esas lineas y las ordena en los campos del contrato. Si falta algo obligatorio,
+   no deja continuar.
 4. Se muestra una **vista previa** de lo extraido. Se puede **editar** cualquier dato.
 5. Al darle **Enviar a firma**, se rellena la plantilla Word original (`app/documents/contrato_turismo/template.docx`,
    sin tocar logos, tablas ni clausulas) y se manda a **Dropbox Sign** para que el cliente firme.
@@ -48,17 +51,12 @@ administrador ni la propia cuenta desde ahi (para evitar quedar sin acceso).
 
 Cuentas: **GitHub**, **Vercel** y **Dropbox Sign** (ya las tienes). Ademas:
 
-### 1. API key de Anthropic (para leer el texto pegado)
-
-1. Ve a [console.anthropic.com](https://console.anthropic.com/) → **API Keys** → crea una nueva.
-2. Copia la key (empieza con `sk-ant-...`).
-
-### 2. API key de Dropbox Sign
+### 1. API key de Dropbox Sign
 
 1. En tu cuenta de Dropbox Sign: **Settings → API → API Key**.
 2. Copia la key.
 
-### 3. Base de datos
+### 2. Base de datos
 
 En Vercel, el proyecto ya tiene conectada una base de datos Postgres (Neon, plan gratuito)
 que guarda los usuarios y sus claves TOTP. La variable `DATABASE_URL` la inyecta Vercel
@@ -98,9 +96,9 @@ tabla de usuarios esta vacia).
 3. Conecta una base de datos Postgres (recomendado: Neon, desde el tab **Storage** del
    proyecto en Vercel) — esto crea `DATABASE_URL` automaticamente.
 4. En **Settings → Environment Variables**, agrega: `SESSION_SECRET`, `BASE_URL`
-   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `ANTHROPIC_API_KEY`,
-   `DROPBOX_SIGN_API_KEY`, y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el
-   primer arranque (bootstrap del primer administrador).
+   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `DROPBOX_SIGN_API_KEY`,
+   y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el primer arranque (bootstrap
+   del primer administrador).
 5. Despliega.
 
 ## Estructura del proyecto
@@ -116,10 +114,10 @@ app/routes/admin_routes.py          panel de administracion de usuarios
 app/documents/                      un modulo por cada tipo de documento
   contrato_turismo/
     schema.py                       campos del contrato + que es obligatorio
+    text_parser.py                  interpreta el texto pegado (etiqueta: valor), sin IA
     filler.py                       rellena template.docx con python-docx
     template.docx                   plantilla Word original (no tocar a mano)
 app/services/
-  claude_client.py                  llama a Anthropic para extraer los datos
   dropboxsign_client.py             envia el documento final a firma
 templates/, static/                 la interfaz (HTML + CSS + JS simple, sin frameworks)
 ```

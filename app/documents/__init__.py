@@ -26,7 +26,7 @@ class DocumentType:
     description: str
     icon: str
     schema_model: type[BaseModel]
-    system_prompt: str
+    parse_fn: Callable[[str], dict]
     fill_fn: Callable[[BaseModel], bytes]
     signer_fn: Callable[[BaseModel], tuple[str, str]]
     missing_fields_fn: Callable[[BaseModel], list[str]]

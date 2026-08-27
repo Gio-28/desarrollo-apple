@@ -1,6 +1,7 @@
 from app.documents import DocumentType, register
 from app.documents.contrato_turismo.filler import fill_contract
-from app.documents.contrato_turismo.schema import SYSTEM_PROMPT, ContratoTurismo, missing_fields
+from app.documents.contrato_turismo.schema import ContratoTurismo, missing_fields
+from app.documents.contrato_turismo.text_parser import parse_pasted_text
 
 
 def _signer(data: ContratoTurismo) -> tuple[str, str]:
@@ -15,7 +16,7 @@ def register_contrato_turismo() -> None:
             description="Contrato de turismo + confirmacion de reserva, listo para enviar a firma.",
             icon="document",
             schema_model=ContratoTurismo,
-            system_prompt=SYSTEM_PROMPT,
+            parse_fn=parse_pasted_text,
             fill_fn=fill_contract,
             signer_fn=_signer,
             missing_fields_fn=missing_fields,
