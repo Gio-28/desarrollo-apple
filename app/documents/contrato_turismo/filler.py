@@ -2,7 +2,9 @@
 Rellena la plantilla Word (template.docx) con los datos de un ContratoTurismo.
 
 La plantilla se preserva intacta (logos, tablas, las 21 clausulas legales, firmas):
-solo se escribe texto en las celdas/parrafos que en el documento original estan en blanco.
+solo se escribe texto en las celdas/parrafos que en el documento original estan en blanco,
+mas algunas filas nuevas insertadas en la tabla de confirmacion de reserva (habitacion,
+numero de personas, resumen de pagos) que no existian en la plantilla original.
 Este modulo conoce la estructura EXACTA de esas celdas (fue inspeccionada a mano), por lo que
 si algun dia se edita el template.docx en Word, estos indices deben revisarse.
 """
@@ -13,6 +15,9 @@ from io import BytesIO
 from pathlib import Path
 
 import docx
+from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.shared import Inches
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
@@ -24,6 +29,8 @@ MESES_ES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
+
+PASAJERO_TAB_STOP = Inches(3.4)
 
 
 # --------------------------------------------------------------------------
@@ -77,6 +84,30 @@ def _find_paragraph(paragraphs: list[Paragraph], contains: str) -> Paragraph | N
         if contains in p.text:
             return p
     return None
+
+
+def _remove_paragraph(paragraph: Paragraph) -> None:
+    element = paragraph._p
+    element.getparent().remove(element)
+
+
+def _replace_everywhere(doc, old_text: str, new_text: str) -> None:
+    """Reemplaza el texto de TODOS los <w:t> que coincidan exactamente, en cualquier
+    parte del documento (incluye cuadros de texto/formas, que python-docx no expone
+    como parrafos normales)."""
+    for t in doc.element.body.iter(qn("w:t")):
+        if (t.text or "").strip() == old_text:
+            t.text = new_text
+
+
+def _clone_row_after(table: Table, template_row_index: int, after_row_index: int):
+    """Clona la fila template_row_index y la inserta despues de after_row_index.
+    Devuelve el nuevo elemento <w:tr>."""
+    tbl = table._tbl
+    trs = tbl.tr_lst
+    new_tr = copy.deepcopy(trs[template_row_index])
+    trs[after_row_index].addnext(new_tr)
+    return new_tr
 
 
 # --------------------------------------------------------------------------
@@ -142,15 +173,17 @@ def _fill_beneficiarios_adicionales(doc, data: ContratoTurismo) -> None:
 
 
 def _fill_signature_block(doc, data: ContratoTurismo) -> None:
-    empresa_rep_p = _find_paragraph(doc.paragraphs, "YERICA LONDOÑO AGUIRRE")
-    if empresa_rep_p:
-        _append_to_last_run(empresa_rep_p, data.cliente_nombre)
-
     cc_p = _find_paragraph(doc.paragraphs, "C.C 1152683639")
     if cc_p:
         _append_to_last_run(cc_p, data.cliente_cedula)
-        # tag de texto que Dropbox Sign convierte en el campo de firma del cliente
-        _insert_paragraph_after(cc_p, "[sig|req|signer1]")
+
+    # ancla en "Gerente y R. Legal" (unico en el documento) para no confundir con el
+    # encabezado "EL CLIENTE O CONTRATANTE" que aparece mucho antes, en la tabla de datos
+    el_cliente_p = _find_paragraph(doc.paragraphs, "Gerente y R. Legal")
+    if el_cliente_p:
+        for run in el_cliente_p.runs:
+            if "EL CLIENTE" in run.text:
+                run.text = run.text.replace("EL CLIENTE", data.cliente_nombre)
 
     fecha_p = _find_paragraph(doc.paragraphs, "Una vez leído en su integridad")
     if fecha_p and len(fecha_p.runs) >= 6:
@@ -165,17 +198,53 @@ def _fill_signature_block(doc, data: ContratoTurismo) -> None:
 def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     res_table = tables[4]
 
+    # Nota: el codigo de reserva vive en un cuadro de texto sobre esta tabla (no es una
+    # celda normal); se reemplaza a nivel de documento completo en fill_contract().
+
     row0 = res_table.rows[0]
     _append_to_last_run(row0.cells[0].paragraphs[0], data.programa)
     _set_cell_text(row0.cells[1], data.fecha_reserva, paragraph_index=1)
 
-    row2 = res_table.rows[2]
+    # filas nuevas: HABITACION / N. DE PERSONAS, y resumen de PAGOS -- clonadas de filas
+    # existentes de la misma tabla para heredar bordes/estilo, insertadas despues de
+    # "RESERVADO A" (fila 1) y antes de "HOTEL / CHECK IN / CHECK OUT" (fila 2 original).
+    # ojo con los indices: cada insercion corre las filas siguientes, por eso el
+    # template_row_index de cada paso se recalcula segun el estado DESPUES del paso anterior.
+    _clone_row_after(res_table, template_row_index=0, after_row_index=1)  # -> HABITACION en indice 2
+    _clone_row_after(res_table, template_row_index=4, after_row_index=2)  # -> PAGOS header en indice 3
+    _clone_row_after(res_table, template_row_index=0, after_row_index=3)  # -> PAGOS valores en indice 4
+
+    # las filas originales HOTEL/CHECKIN/CHECKOUT y DATOS DE PASAJEROS ahora quedaron
+    # corridas 3 posiciones (se insertaron 3 filas nuevas antes de ellas)
+    # cells[1] de estas filas se clono del patron "FECHA" (2 parrafos: etiqueta + valor);
+    # se usa el primer parrafo para el texto y se ELIMINA el segundo (si no, queda una
+    # linea en blanco sobrante en la celda).
+    row_habitacion = res_table.rows[2]
+    _set_cell_text(row_habitacion.cells[0], f"HABITACIÓN: {data.habitacion}")
+    _set_cell_text(row_habitacion.cells[1], f"N° DE PERSONAS: {data.cantidad_personas}", paragraph_index=0)
+    if len(row_habitacion.cells[1].paragraphs) > 1:
+        _remove_paragraph(row_habitacion.cells[1].paragraphs[1])
+
+    row_pagos_header = res_table.rows[3]
+    _set_cell_text(row_pagos_header.cells[0], "PAGOS")
+
+    row_pagos_valores = res_table.rows[4]
+    _set_cell_text(row_pagos_valores.cells[0], f"VALOR TOTAL: $ {data.valor_total}")
+    _set_cell_text(
+        row_pagos_valores.cells[1],
+        f"VALOR ABONADO: $ {data.valor_abonado}          VALOR RESTANTE: $ {data.valor_restante}",
+        paragraph_index=0,
+    )
+    if len(row_pagos_valores.cells[1].paragraphs) > 1:
+        _remove_paragraph(row_pagos_valores.cells[1].paragraphs[1])
+
+    row2 = res_table.rows[5]
     _append_to_last_run(row2.cells[0].paragraphs[0], data.hotel)
     _set_cell_text(row2.cells[2], f"CHECK IN: {data.check_in}")
     _set_cell_text(row2.cells[3], f"CHECK OUT: {data.check_out}")
 
-    # fila 5: celda unica (combinada) con un parrafo por pasajero "NOMBRE   Doc: XXXX"
-    pax_row = res_table.rows[5]
+    # fila 8: celda unica (combinada) con un parrafo por pasajero "NOMBRE [tab] Doc: XXXX"
+    pax_row = res_table.rows[8]
     cell = pax_row.cells[0]
     existing = cell.paragraphs
     last_p = existing[-1] if existing else None
@@ -186,9 +255,11 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
         existing = cell.paragraphs
 
     for i, p in enumerate(existing):
+        p.paragraph_format.tab_stops.clear_all()
+        p.paragraph_format.tab_stops.add_tab_stop(PASAJERO_TAB_STOP, WD_TAB_ALIGNMENT.LEFT)
         if i < len(pasajeros):
             pax = pasajeros[i]
-            _set_paragraph_text(p, f"{pax.nombre}          Doc: {pax.documento}")
+            _set_paragraph_text(p, f"{pax.nombre}\tDoc: {pax.documento}")
         else:
             _set_paragraph_text(p, "")
 
@@ -213,6 +284,7 @@ def fill_contract(data: ContratoTurismo) -> bytes:
     _fill_signature_block(doc, data)
     _fill_reservation_table(tables, data)
     _fill_incluye_no_incluye(tables, data)
+    _replace_everywhere(doc, "T-XXX", data.confirmacion_reserva)
 
     buffer = BytesIO()
     doc.save(buffer)

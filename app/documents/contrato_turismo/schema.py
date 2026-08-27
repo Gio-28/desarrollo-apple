@@ -36,9 +36,13 @@ class ContratoTurismo(BaseModel):
         description="Otros viajeros/beneficiarios adicionales al cliente (nombre + cedula). Puede estar vacia si el cliente viaja solo.",
     )
 
-    programa: str = Field("", description="Nombre del programa o plan turistico reservado")
+    programa: str = Field("", description="Nombre del destino/programa reservado")
     fecha_reserva: str = Field("", description="Fecha(s) del viaje / de la reserva")
     hotel: str = Field("", description="Hotel(es) donde se hospedara")
+    habitacion: str = Field("", description="Tipo de habitacion (ej. Estandar, Doble). Opcional.")
+    cantidad_personas: str = Field("", description="Numero de personas que viajan. Opcional.")
+    valor_abonado: str = Field("", description="Valor ya abonado/pagado del plan turistico. Opcional.")
+    valor_restante: str = Field("", description="Valor restante por pagar del plan turistico. Opcional.")
     check_in: str = Field("15:00", description="Hora de check in del hotel. Si no se menciona, usar 15:00")
     check_out: str = Field("12:00", description="Hora de check out del hotel. Si no se menciona, usar 12:00")
     pasajeros_reserva: list[PasajeroReserva] = Field(

@@ -15,10 +15,14 @@
     ["destino", "Destino del viaje"],
     ["confirmacion_reserva", "Confirmacion de reserva"],
     ["valor_total", "Valor total ($)"],
+    ["valor_abonado", "Valor abonado ($)"],
+    ["valor_restante", "Valor restante ($)"],
     ["fecha_limite_pago", "Fecha limite de pago"],
     ["programa", "Programa"],
     ["fecha_reserva", "Fecha de la reserva"],
     ["hotel", "Hotel"],
+    ["habitacion", "Habitacion"],
+    ["cantidad_personas", "Cantidad de personas"],
     ["check_in", "Check in"],
     ["check_out", "Check out"],
   ];
@@ -26,8 +30,8 @@
   const EMPTY_DATA = {
     asesor_comercial: "", asesor_correo: "", cliente_nombre: "", cliente_cedula: "", cliente_direccion: "",
     cliente_telefono: "", cliente_correo: "", destino: "", confirmacion_reserva: "",
-    valor_total: "", fecha_limite_pago: "", pagos: [], pasajeros_adicionales: [],
-    programa: "", fecha_reserva: "", hotel: "", check_in: "15:00", check_out: "12:00",
+    valor_total: "", valor_abonado: "", valor_restante: "", fecha_limite_pago: "", pagos: [], pasajeros_adicionales: [],
+    programa: "", fecha_reserva: "", hotel: "", habitacion: "", cantidad_personas: "", check_in: "15:00", check_out: "12:00",
     pasajeros_reserva: [], incluye: "", no_incluye: "",
   };
 
@@ -137,6 +141,8 @@
     html += rows("Destino", d.destino);
     html += rows("Confirmacion de reserva", d.confirmacion_reserva);
     html += rows("Valor total", "$ " + (d.valor_total || ""));
+    html += rows("Valor abonado", d.valor_abonado ? "$ " + d.valor_abonado : "");
+    html += rows("Valor restante", d.valor_restante ? "$ " + d.valor_restante : "");
     html += rows("Fecha limite de pago", d.fecha_limite_pago);
     html += `</div>`;
 
@@ -158,6 +164,8 @@
     html += rows("Programa", d.programa);
     html += rows("Fecha", d.fecha_reserva);
     html += rows("Hotel", d.hotel);
+    html += rows("Habitacion", d.habitacion);
+    html += rows("Cantidad de personas", d.cantidad_personas);
     html += rows("Check in", d.check_in);
     html += rows("Check out", d.check_out);
     html += `</div>`;
@@ -179,7 +187,7 @@
   function renderEditForm() {
     const d = state.data;
     let html = `<div class="edit-card"><h2>Contrato</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(0, 11).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(0, 13).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;
@@ -191,7 +199,7 @@
       <button type="button" class="btn-add" data-add="adicionales">+ Agregar viajero</button></div>`;
 
     html += `<div class="edit-card"><h2>Confirmacion de reserva</h2><div class="form-grid">`;
-    SCALAR_FIELDS.slice(11).forEach(([key, label]) => {
+    SCALAR_FIELDS.slice(13).forEach(([key, label]) => {
       html += fieldInput(key, label, d[key]);
     });
     html += `</div></div>`;
