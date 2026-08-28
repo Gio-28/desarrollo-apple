@@ -23,6 +23,7 @@ from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
 from app.documents.contrato_turismo.schema import ContratoTurismo
+from app.documents.contrato_turismo.text_parser import _normalize_itinerario_lines
 
 TEMPLATE_PATH = Path(__file__).parent / "template.docx"
 
@@ -329,12 +330,19 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
         return p
 
     if data.itinerario.strip():
+        # se normaliza aqui de nuevo (ademas de en el parser del texto pegado) para que
+        # tambien quede bien organizado si el itinerario se pego o se edito a mano
+        # directamente en el campo de edicion, sin pasar por el parser: colapsa espacios
+        # en blanco irregulares y descarta un titulo "ITINERARIO" duplicado si la persona
+        # copio el texto con su propio encabezado.
+        itinerario_lines = _normalize_itinerario_lines(data.itinerario.split("\n"))
+
         title_p = _paragraph_after(anchor, center=True)
         title_run = title_p.add_run("ITINERARIO")
         title_run.bold = True
         _force_black(title_run)
         anchor = title_p._p
-        for line in data.itinerario.split("\n"):
+        for line in itinerario_lines:
             body_p = _paragraph_after(anchor)
             if line.strip():
                 _force_black(body_p.add_run(line))
@@ -344,7 +352,7 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
         image_bytes = _decode_data_uri(data.tiquetes_imagen)
         if image_bytes:
             title_p = _paragraph_after(anchor, center=True)
-            title_run = title_p.add_run("Tiquetes aéreos")
+            title_run = title_p.add_run("TIQUETES AÉREOS")
             title_run.bold = True
             _force_black(title_run)
             anchor = title_p._p

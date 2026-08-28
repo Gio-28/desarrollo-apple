@@ -108,6 +108,15 @@ def _normalize_itinerario_lines(lines: list[str]) -> list[str]:
     while collapsed and collapsed[0] == "":
         collapsed.pop(0)
 
+    # si el texto pegado ya trae su propio titulo "ITINERARIO" (p.ej. lo copiaron de otro
+    # documento con encabezado incluido), se descarta: el contrato final SIEMPRE agrega su
+    # propio titulo "ITINERARIO" centrado y en mayuscula antes de este contenido, y dejar
+    # el que trae el texto pegado lo duplicaria.
+    if collapsed and _strip_decorations(collapsed[0]).rstrip(":") == "itinerario":
+        collapsed.pop(0)
+        while collapsed and collapsed[0] == "":
+            collapsed.pop(0)
+
     out: list[str] = []
     i = 0
     while i < len(collapsed):
