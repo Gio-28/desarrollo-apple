@@ -153,6 +153,24 @@ def _clone_row_after(table: Table, template_row_index: int, after_row_index: int
     return new_tr
 
 
+def _prevent_table_split(table: Table) -> None:
+    """Evita que la tabla quede partida entre dos paginas (una fila en una pagina y el
+    resto en la siguiente): si no cabe completa en el espacio que queda en la pagina
+    actual, Word la pasa entera a la pagina siguiente en vez de cortarla a la mitad.
+    Se logra encadenando todas las filas con "mantener con el siguiente" (asi Word no
+    puede separar una fila de la que sigue) y marcando cada fila para que no se pueda
+    partir internamente."""
+    rows = table.rows
+    last_index = len(rows) - 1
+    for i, row in enumerate(rows):
+        trPr = row._tr.get_or_add_trPr()
+        trPr.append(trPr.makeelement(qn("w:cantSplit"), {}))
+        if i < last_index:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    p.paragraph_format.keep_with_next = True
+
+
 # --------------------------------------------------------------------------
 # Bloques especificos del contrato
 # --------------------------------------------------------------------------
@@ -199,6 +217,8 @@ def _fill_payment_table(tables: list[Table], data: ContratoTurismo) -> None:
         row = pay_table.rows[2 + i]
         _set_cell_text(row.cells[0], pago.fecha)
         _set_cell_text(row.cells[1], f"$ {pago.valor}")
+
+    _prevent_table_split(pay_table)
 
 
 def _fill_beneficiarios_adicionales(doc, data: ContratoTurismo) -> None:

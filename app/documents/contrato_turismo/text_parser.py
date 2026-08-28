@@ -61,23 +61,41 @@ COL_ACUERDOS_PAGO_START = 72  # 4 pares (valor, fecha) desde aqui: 72/73, 74/75,
 
 MIN_TABS_SHEET_ROW = 40  # umbral para reconocer una fila de la hoja (tiene ~79 tabs)
 
+# Tipos de documento de identidad que usa la agencia: cedula, tarjeta de identidad,
+# pasaporte, cedula de extranjeria, registro civil. Con o sin puntos ("C.C." o "CC").
+_DOC_LABEL = r"(?:c\.?\s*c\.?|t\.?\s*i\.?|p\.?\s*p\.?|c\.?\s*e\.?|r\.?\s*i\.?)"
+# El separador entre nombre y documento puede ser un guion (" - CC 123") o simplemente un
+# tab/varios espacios (asi queda al copiar una columna de Excel: "Nombre<TAB>PP:AV906801").
 _PASAJERO_RE = re.compile(
-    r"^\s*(?P<nombre>.+?)\s*-\s*c\.?\s*c\.?\s*[:.]?\s*(?P<doc>[\d.]{4,})\s*$", re.IGNORECASE
+    rf"^\s*(?P<nombre>.+?)\s*(?:-\s*|[\t ]{{2,}})?{_DOC_LABEL}\s*[:.]?\s*(?P<doc>[A-Za-z0-9.]{{4,}})\s*$",
+    re.IGNORECASE,
 )
 _HABITACION_RE = re.compile(r"^\s*habitaci[oó]n\s*:?\s*(?P<valor>.+)$", re.IGNORECASE)
-_BULLET_RE = re.compile(r"^[\s•\-\*•]+")
+# Ademas de simbolos de vinieta normales, algunas listas pegadas desde Word usan la letra
+# "o" como vinieta (seguida de un tab o varios espacios) -- no se quita un "o" seguido de
+# un solo espacio para no cortar por error la palabra "o" al inicio de una frase.
+_BULLET_RE = re.compile(r"^(?:[\s•●○▪‣·\-\*]+|o(?=[\t ]))+", re.IGNORECASE)
 _DDMMYYYY_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
 
 # Encabezados de seccion "incluye" / "no incluye", tolerando que vengan decorados con
-# emojis, mayusculas, "EL PLAN" / "EL PROGRAMA" delante, o dos puntos al final (p.ej.
-# "✨ EL PLAN INCLUYE:" o "🚫 EL PLAN NO INCLUYE:"). Sin esto, una linea de encabezado que
-# no sea EXACTAMENTE "no incluye" nunca activa el cambio de seccion y todo su contenido
-# termina metido dentro de "incluye".
-_NO_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+)?no\s*incluye\s*:?$")
-_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+)?incluye\s*:?$")
+# emojis, mayusculas, "EL PLAN" / "EL PROGRAMA" / "SERVICIOS" delante, en singular o
+# plural ("incluye", "incluido", "incluidos"), o dos puntos al final (p.ej.
+# "✨ EL PLAN INCLUYE:", "🚫 EL PLAN NO INCLUYE:", "SERVICIOS INCLUIDOS",
+# "SERVICIOS NO INCLUIDOS"). Sin esto, una linea de encabezado que no calce EXACTO con
+# "no incluye" nunca activa el cambio de seccion y todo su contenido (incluido el propio
+# titulo) termina metido dentro de "incluye".
+_NO_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+|servicios\s+)?no\s*inclu(?:ye|ido|idos)\s*:?$")
+_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+|servicios\s+)?inclu(?:ye|ido|idos)\s*:?$")
 
 # Encabezados de dia en un itinerario (p.ej. "DIA 1: Santiago", "Día 2 - Cartagena").
 _DIA_HEADER_RE = re.compile(r"^d[ií]a\s+\d+\b", re.IGNORECASE)
+
+
+def _norm_name(s: str) -> str:
+    """Normaliza un nombre para comparar (sin acentos, mayus/minus ni espacios de mas)."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", s).strip().lower()
 
 
 def _strip_decorations(s: str) -> str:
@@ -271,6 +289,12 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
             break
         acompanantes.append({"nombre": m.group("nombre").strip(), "doc": m.group("doc").strip()})
         i += 1
+
+    # a veces la hoja lista al titular de nuevo en el bloque de pasajeros (p.ej. con su
+    # numero de pasaporte en vez de la cedula) -- no es un acompañante real, es la misma
+    # persona, y ya va como titular en pasajeros_reserva mas abajo.
+    titular_norm = _norm_name(data["cliente_nombre"])
+    acompanantes = [a for a in acompanantes if _norm_name(a["nombre"]) != titular_norm]
 
     # 2) resto: habitacion / incluye / no incluye / itinerario. Las lineas en blanco se
     # descartan en incluye/no_incluye (cada item es una linea), pero se PRESERVAN dentro
