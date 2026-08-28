@@ -78,6 +78,7 @@ def reset_password(user_id: int, new_password: str) -> None:
             (hash_password(new_password), user_id),
         )
         conn.commit()
+    revoke_trusted_devices(user_id)
 
 
 def set_password(user_id: int, new_password: str) -> None:
@@ -88,6 +89,7 @@ def set_password(user_id: int, new_password: str) -> None:
             (hash_password(new_password), user_id),
         )
         conn.commit()
+    revoke_trusted_devices(user_id)
 
 
 def register_failed_attempt(user_id: int) -> None:
@@ -125,6 +127,38 @@ def bootstrap_admin(username: str, password: str) -> None:
                 (username, hash_password(password)),
             )
             conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Dispositivos de confianza (omitir codigo de verificacion)
+# ---------------------------------------------------------------------------
+
+
+def add_trusted_device(user_id: int, token_hash: str, expires_at, user_agent: str = "") -> None:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO trusted_devices (user_id, token_hash, expires_at, user_agent) VALUES (%s, %s, %s, %s)",
+            (user_id, token_hash, expires_at, user_agent[:255]),
+        )
+        conn.commit()
+
+
+def is_trusted_device(user_id: int, token_hash: str) -> bool:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM trusted_devices WHERE user_id = %s AND token_hash = %s AND expires_at > now()",
+            (user_id, token_hash),
+        )
+        return cur.fetchone() is not None
+
+
+def revoke_trusted_devices(user_id: int) -> None:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM trusted_devices WHERE user_id = %s", (user_id,))
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------

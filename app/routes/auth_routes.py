@@ -4,20 +4,27 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.auth import (
+    add_trusted_device,
     current_user,
     get_csrf_token,
     get_user_by_id,
     get_user_by_username,
+    is_trusted_device,
     register_failed_attempt,
     reset_failed_attempts,
     set_email,
     set_password,
 )
+from app.config import settings
 from app.security import (
     OTP_TTL_MINUTES,
+    TRUSTED_DEVICE_COOKIE,
+    TRUSTED_DEVICE_DAYS,
     constant_time_eq,
     email_is_valid,
+    generate_device_token,
     generate_otp_code,
+    hash_device_token,
     is_locked,
     lockout_remaining_seconds,
     password_is_strong,
@@ -27,6 +34,33 @@ from app.services.email_client import send_otp_email
 from app.templating import templates
 
 router = APIRouter()
+
+IS_HTTPS = settings.base_url.startswith("https://")
+
+
+def _trusted_device_cookie_matches(request: Request, user_id: int) -> bool:
+    raw = request.cookies.get(TRUSTED_DEVICE_COOKIE, "")
+    if not raw or ":" not in raw:
+        return False
+    cookie_user_id, _, token = raw.partition(":")
+    if cookie_user_id != str(user_id) or not token:
+        return False
+    return is_trusted_device(user_id, hash_device_token(token))
+
+
+def _set_trusted_device_cookie(response: RedirectResponse, request: Request, user_id: int) -> None:
+    token = generate_device_token()
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=TRUSTED_DEVICE_DAYS)
+    add_trusted_device(user_id, hash_device_token(token), expires, request.headers.get("user-agent", ""))
+    response.set_cookie(
+        TRUSTED_DEVICE_COOKIE,
+        f"{user_id}:{token}",
+        max_age=TRUSTED_DEVICE_DAYS * 24 * 60 * 60,
+        httponly=True,
+        secure=IS_HTTPS,
+        samesite="strict",
+        path="/",
+    )
 
 
 def _pending_user(request: Request) -> dict | None:
@@ -123,6 +157,9 @@ async def login_submit(
         return RedirectResponse(url="/cambiar-clave", status_code=303)
     if not user["email"]:
         return RedirectResponse(url="/configurar-correo", status_code=303)
+
+    if _trusted_device_cookie_matches(request, user["id"]):
+        return _finish_login(request, user)
 
     err = _send_login_code(request, user)
     if err:
@@ -243,7 +280,12 @@ async def verificar_codigo_page(request: Request, error: str | None = None):
 
 
 @router.post("/verificar-codigo")
-async def verificar_codigo_submit(request: Request, code: str = Form(...), csrf_token: str = Form(...)):
+async def verificar_codigo_submit(
+    request: Request,
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    recordar_dispositivo: str = Form(""),
+):
     session_csrf = request.session.get("csrf_token")
     user = _pending_user(request)
     pending_code = request.session.get("pending_otp_code")
@@ -265,7 +307,10 @@ async def verificar_codigo_submit(request: Request, code: str = Form(...), csrf_
             status_code=401,
         )
 
-    return _finish_login(request, user)
+    response = _finish_login(request, user)
+    if recordar_dispositivo:
+        _set_trusted_device_cookie(response, request, user["id"])
+    return response
 
 
 @router.post("/verificar-codigo/reenviar")

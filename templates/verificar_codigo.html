@@ -20,6 +20,10 @@
         <span>Codigo de 6 digitos</span>
         <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code" />
       </label>
+      <label class="form-field-checkbox">
+        <input type="checkbox" name="recordar_dispositivo" value="1" />
+        <span>Confiar en este dispositivo por 30 dias (no pedir codigo aqui la proxima vez)</span>
+      </label>
       <button type="submit" class="btn-primary btn-block">Verificar</button>
     </form>
 

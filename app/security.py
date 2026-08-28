@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import re
 import secrets
 
@@ -8,6 +9,8 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 MIN_PASSWORD_LENGTH = 10
 OTP_TTL_MINUTES = 10
+TRUSTED_DEVICE_DAYS = 30
+TRUSTED_DEVICE_COOKIE = "trusted_device"
 
 
 def hash_password(password: str) -> str:
@@ -75,3 +78,11 @@ def new_csrf_token() -> str:
 
 def constant_time_eq(a: str, b: str) -> bool:
     return secrets.compare_digest(a or "", b or "")
+
+
+def generate_device_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_device_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
