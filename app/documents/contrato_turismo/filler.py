@@ -202,20 +202,24 @@ def _fill_payment_table(tables: list[Table], data: ContratoTurismo) -> None:
 
 
 def _fill_beneficiarios_adicionales(doc, data: ContratoTurismo) -> None:
+    """Llena los blancos de la clausula 16 (VIAJEROS Y CLIENTES O BENEFICIARIOS
+    ADICIONALES) con TODOS los pasajeros de la reserva (titular + acompañantes), la
+    misma lista que se usa en la tabla de confirmacion de reserva: si viaja una sola
+    persona queda solo el titular, y si viajan varias, el titular y cada acompañante."""
     blanks = [p for p in doc.paragraphs if p.text and set(p.text.strip()) == {"_"}]
     if not blanks:
         return
 
-    pasajeros = data.pasajeros_adicionales
+    pasajeros = data.pasajeros_reserva
     for i, p in enumerate(blanks):
         if i < len(pasajeros):
             b = pasajeros[i]
-            _set_paragraph_text(p, f"{b.nombre}          C.C. {b.cedula}")
+            _set_paragraph_text(p, f"{b.nombre}          C.C. {b.documento}")
 
     last_p = blanks[-1]
     for i in range(len(blanks), len(pasajeros)):
         b = pasajeros[i]
-        last_p = _insert_paragraph_after(last_p, f"{b.nombre}          C.C. {b.cedula}")
+        last_p = _insert_paragraph_after(last_p, f"{b.nombre}          C.C. {b.documento}")
 
 
 def _fill_signature_block(doc, data: ContratoTurismo) -> None:
@@ -362,6 +366,23 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
             anchor = img_p._p
 
 
+def _dedupe_pasajeros(pasajeros: list) -> list:
+    """Quita pasajeros duplicados (mismo nombre + documento, sin importar mayus/minus ni
+    espacios de mas) antes de imprimirlos -- p.ej. si el titular termino listado dos veces
+    porque el formato pegado ya lo incluye automaticamente y ademas se agrego a mano en el
+    formulario, evita que salga repetido tanto en la clausula 16 como en la tabla de
+    confirmacion de reserva."""
+    seen = set()
+    out = []
+    for p in pasajeros:
+        key = (p.nombre.strip().lower(), p.documento.strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
 # --------------------------------------------------------------------------
 # Punto de entrada
 # --------------------------------------------------------------------------
@@ -369,6 +390,8 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
 def fill_contract(data: ContratoTurismo) -> bytes:
     doc = docx.Document(str(TEMPLATE_PATH))
     tables = doc.tables
+
+    data.pasajeros_reserva = _dedupe_pasajeros(data.pasajeros_reserva)
 
     _fill_empresa_cliente_tables(tables, data)
     _fill_payment_table(tables, data)
