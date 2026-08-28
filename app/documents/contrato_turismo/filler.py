@@ -12,6 +12,7 @@ si algun dia se edita el template.docx en Word, estos indices deben revisarse.
 import base64
 import copy
 import datetime
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -23,7 +24,12 @@ from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
 from app.documents.contrato_turismo.schema import ContratoTurismo
-from app.documents.contrato_turismo.text_parser import _normalize_itinerario_lines
+from app.documents.contrato_turismo.text_parser import (
+    _INCLUYE_HEADER_RE,
+    _NO_INCLUYE_HEADER_RE,
+    _normalize_itinerario_lines,
+    _strip_decorations,
+)
 
 TEMPLATE_PATH = Path(__file__).parent / "template.docx"
 
@@ -107,6 +113,21 @@ def _insert_paragraph_after(paragraph: Paragraph, text: str = "") -> Paragraph:
     return new_paragraph
 
 
+def _strip_paragraph_spacing(paragraph: Paragraph) -> None:
+    """Quita el espacio extra antes/despues del parrafo (w:spacing en su pPr). Al clonar
+    un parrafo de la plantilla para agregar mas lineas (ver _insert_paragraph_after), se
+    copia tambien ese w:spacing -- y si el parrafo clonado tenia espacio extra despues (
+    comun en el ultimo parrafo "placeholder" de una celda, pensado para separarlo del
+    siguiente elemento), cada linea nueva heredaba ese hueco visual entre lineas. Se quita
+    para que todas las lineas de una lista (incluye/no incluye) queden parejas."""
+    pPr = paragraph._p.find(qn("w:pPr"))
+    if pPr is None:
+        return
+    spacing = pPr.find(qn("w:spacing"))
+    if spacing is not None:
+        pPr.remove(spacing)
+
+
 def _fill_multiline_cell(cell: _Cell, text: str) -> None:
     lines = [line.strip() for line in text.split("\n") if line.strip()] or [""]
     existing = cell.paragraphs
@@ -116,6 +137,7 @@ def _fill_multiline_cell(cell: _Cell, text: str) -> None:
         existing = cell.paragraphs
     for i, p in enumerate(existing):
         _set_paragraph_text(p, lines[i] if i < len(lines) else "")
+        _strip_paragraph_spacing(p)
 
 
 def _find_paragraph(paragraphs: list[Paragraph], contains: str) -> Paragraph | None:
@@ -325,10 +347,29 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
         _set_cell_text(new_row.cells[2], pax.documento.upper())
 
 
+def _strip_leading_header(text: str, header_re: re.Pattern) -> str:
+    """Quita la primera linea de 'text' si es un titulo tipo 'incluye'/'no incluye' (en
+    cualquiera de sus variantes). El documento final ya trae su propio titulo "EL PROGRAMA
+    INCLUYE"/"EL PROGRAMA NO INCLUYE" en la tabla; si el texto pegado o editado a mano
+    trae el suyo propio, sin esto quedaria duplicado. Se aplica aqui (ademas de en el
+    parser del texto pegado) para que tambien funcione si el titulo se pego o quedo
+    directo en el campo de edicion, sin pasar por el parser."""
+    lines = text.split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines and header_re.match(_strip_decorations(lines[0])):
+        lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+    return "\n".join(lines)
+
+
 def _fill_incluye_no_incluye(tables: list[Table], data: ContratoTurismo) -> None:
     incluye_table, no_incluye_table = tables[5], tables[6]
-    _fill_multiline_cell(incluye_table.rows[1].cells[0], data.incluye)
-    _fill_multiline_cell(no_incluye_table.rows[1].cells[0], data.no_incluye)
+    incluye = _strip_leading_header(data.incluye, _INCLUYE_HEADER_RE)
+    no_incluye = _strip_leading_header(data.no_incluye, _NO_INCLUYE_HEADER_RE)
+    _fill_multiline_cell(incluye_table.rows[1].cells[0], incluye)
+    _fill_multiline_cell(no_incluye_table.rows[1].cells[0], no_incluye)
 
 
 def _decode_data_uri(data_uri: str) -> bytes | None:

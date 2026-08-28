@@ -84,8 +84,8 @@ _DDMMYYYY_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
 # "SERVICIOS NO INCLUIDOS"). Sin esto, una linea de encabezado que no calce EXACTO con
 # "no incluye" nunca activa el cambio de seccion y todo su contenido (incluido el propio
 # titulo) termina metido dentro de "incluye".
-_NO_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+|servicios\s+)?no\s*inclu(?:ye|ido|idos)\s*:?$")
-_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+|servicios\s+)?inclu(?:ye|ido|idos)\s*:?$")
+_NO_INCLUYE_HEADER_RE = re.compile(r"^(?:(?:el\s+)?(?:plan|programa|servicios)\s+)?no\s*inclu(?:ye|ido|idos)\s*:?$")
+_INCLUYE_HEADER_RE = re.compile(r"^(?:(?:el\s+)?(?:plan|programa|servicios)\s+)?inclu(?:ye|ido|idos)\s*:?$")
 
 # Encabezados de dia en un itinerario (p.ej. "DIA 1: Santiago", "Día 2 - Cartagena").
 _DIA_HEADER_RE = re.compile(r"^d[ií]a\s+\d+\b", re.IGNORECASE)
