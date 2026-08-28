@@ -18,7 +18,7 @@ from pathlib import Path
 import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
-from docx.shared import Inches
+from docx.shared import Inches, RGBColor
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
@@ -31,32 +31,71 @@ MESES_ES = [
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
 
+BLACK = RGBColor(0, 0, 0)
+
+
+def _force_black(run) -> None:
+    run.font.color.rgb = BLACK
+
 
 # --------------------------------------------------------------------------
 # Helpers genericos de edicion de un .docx ya cargado
 # --------------------------------------------------------------------------
 
-def _set_paragraph_text(paragraph: Paragraph, text: str) -> None:
+def _set_paragraph_text(paragraph: Paragraph, text: str, bold: bool | None = None) -> None:
+    """Escribe 'text' en el primer run del parrafo (limpiando el resto) y fuerza que el
+    texto quede en negro, sin importar que color tuviera el run original en la plantilla
+    (evita heredar colores de placeholders). Si 'bold' no es None, tambien fuerza la
+    negrilla de ese run."""
     if paragraph.runs:
-        paragraph.runs[0].text = text
+        run = paragraph.runs[0]
+        run.text = text
         for r in paragraph.runs[1:]:
             r.text = ""
     else:
-        paragraph.add_run(text)
+        run = paragraph.add_run(text)
+    _force_black(run)
+    if bold is not None:
+        run.bold = bold
 
 
-def _set_cell_text(cell: _Cell, value: str, paragraph_index: int = 0) -> None:
+def _set_cell_text(cell: _Cell, value: str, paragraph_index: int = 0, bold: bool | None = None) -> None:
     paragraphs = cell.paragraphs
     if paragraph_index >= len(paragraphs):
         return
-    _set_paragraph_text(paragraphs[paragraph_index], value)
+    _set_paragraph_text(paragraphs[paragraph_index], value, bold=bold)
+
+
+def _set_cell_label_value(cell: _Cell, label: str, value: str, paragraph_index: int = 0) -> None:
+    """Escribe 'label' + 'value' respetando el formato run-por-run que ya trae la
+    plantilla en estas celdas: el/los primeros runs son la etiqueta en negrilla y el
+    ULTIMO run (reservado para el dato) no esta en negrilla. Si se sobreescribiera todo
+    el parrafo con un solo run heredado de la etiqueta, el valor quedaria tambien en
+    negrilla -- por eso etiqueta y valor se escriben en runs separados."""
+    paragraphs = cell.paragraphs
+    if paragraph_index >= len(paragraphs):
+        return
+    paragraph = paragraphs[paragraph_index]
+    runs = paragraph.runs
+    if len(runs) < 2:
+        _set_paragraph_text(paragraph, f"{label}{value}")
+        return
+    runs[0].text = label
+    _force_black(runs[0])
+    for r in runs[1:-1]:
+        r.text = ""
+    runs[-1].text = value
+    runs[-1].bold = False
+    _force_black(runs[-1])
 
 
 def _append_to_last_run(paragraph: Paragraph, extra_text: str) -> None:
     if paragraph.runs:
-        paragraph.runs[-1].text = (paragraph.runs[-1].text or "") + extra_text
+        run = paragraph.runs[-1]
+        run.text = (run.text or "") + extra_text
     else:
-        paragraph.add_run(extra_text)
+        run = paragraph.add_run(extra_text)
+    _force_black(run)
 
 
 def _insert_paragraph_after(paragraph: Paragraph, text: str = "") -> Paragraph:
@@ -91,12 +130,16 @@ def _remove_paragraph(paragraph: Paragraph) -> None:
 
 
 def _replace_everywhere(doc, old_text: str, new_text: str) -> None:
-    """Reemplaza el texto de TODOS los <w:t> que coincidan exactamente, en cualquier
-    parte del documento (incluye cuadros de texto/formas, que python-docx no expone
-    como parrafos normales)."""
-    for t in doc.element.body.iter(qn("w:t")):
-        if (t.text or "").strip() == old_text:
-            t.text = new_text
+    """Reemplaza el texto de un parrafo completo (uniendo todos sus runs) que coincida
+    exactamente, en cualquier parte del documento -- incluye cuadros de texto/formas, que
+    python-docx no expone via doc.paragraphs. Compara el parrafo COMPLETO (no cada <w:t>
+    por separado) porque Word suele partir un mismo texto en varios runs dentro de un
+    cuadro de texto (p.ej. "T-XXX" guardado como runs "T-" y "XXX"), y comparar run por
+    run nunca encuentra coincidencia en ese caso."""
+    for p_elm in doc.element.body.iter(qn("w:p")):
+        paragraph = Paragraph(p_elm, doc)
+        if paragraph.text.strip() == old_text:
+            _set_paragraph_text(paragraph, new_text)
 
 
 def _clone_row_after(table: Table, template_row_index: int, after_row_index: int):
@@ -126,15 +169,18 @@ def _fill_empresa_cliente_tables(tables: list[Table], data: ContratoTurismo) -> 
     _set_cell_text(cliente_table.rows[3].cells[1], data.cliente_telefono)
     _set_cell_text(cliente_table.rows[4].cells[1], data.cliente_correo)
     _set_cell_text(cliente_table.rows[5].cells[1], data.destino)
-    _set_cell_text(cliente_table.rows[6].cells[1], data.confirmacion_reserva)
+    _set_cell_text(cliente_table.rows[6].cells[1], data.confirmacion_reserva.upper())
 
 
 def _fill_payment_table(tables: list[Table], data: ContratoTurismo) -> None:
     pay_table = tables[2]
 
     # fila 0: VALOR TOTAL (parrafo 2) / FECHA LIMITE DE PAGO (parrafo 2, celda combinada col1-2)
-    _set_cell_text(pay_table.rows[0].cells[0], f"$ {data.valor_total}", paragraph_index=1)
-    _set_cell_text(pay_table.rows[0].cells[1], data.fecha_limite_pago, paragraph_index=1)
+    # bold=False: son los DATOS (no la etiqueta "VALOR TOTAL" / "FECHA LIMITE..." de arriba,
+    # que no se toca), y esa etiqueta esta en negrilla en la plantilla -- sin forzarlo aqui
+    # el valor la heredaria.
+    _set_cell_text(pay_table.rows[0].cells[0], f"$ {data.valor_total}", paragraph_index=1, bold=False)
+    _set_cell_text(pay_table.rows[0].cells[1], data.fecha_limite_pago, paragraph_index=1, bold=False)
 
     # filas 2 y 3 son la plantilla de cada abono (fecha | $valor). Se clona segun # de pagos.
     tbl = pay_table._tbl
@@ -201,8 +247,8 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     # celda normal); se reemplaza a nivel de documento completo en fill_contract().
 
     row0 = res_table.rows[0]
-    _append_to_last_run(row0.cells[0].paragraphs[0], data.programa)
-    _set_cell_text(row0.cells[1], data.fecha_reserva, paragraph_index=1)
+    _append_to_last_run(row0.cells[0].paragraphs[0], data.programa.upper())
+    _set_cell_text(row0.cells[1], data.fecha_reserva.upper(), paragraph_index=1, bold=False)
 
     # filas nuevas: HABITACION / N. DE PERSONAS, y resumen de PAGOS -- clonadas de filas
     # existentes de la misma tabla para heredar bordes/estilo, insertadas despues de
@@ -219,8 +265,8 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     # se usa el primer parrafo para el texto y se ELIMINA el segundo (si no, queda una
     # linea en blanco sobrante en la celda).
     row_habitacion = res_table.rows[2]
-    _set_cell_text(row_habitacion.cells[0], f"HABITACIÓN: {data.habitacion}")
-    _set_cell_text(row_habitacion.cells[1], f"N° DE PERSONAS: {data.cantidad_personas}", paragraph_index=0)
+    _set_cell_label_value(row_habitacion.cells[0], "HABITACIÓN: ", data.habitacion.upper())
+    _set_cell_label_value(row_habitacion.cells[1], "N° DE PERSONAS: ", data.cantidad_personas.upper())
     if len(row_habitacion.cells[1].paragraphs) > 1:
         _remove_paragraph(row_habitacion.cells[1].paragraphs[1])
 
@@ -230,14 +276,14 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
     # fila de PAGOS-valores: se clona del patron de HOTEL/CHECKIN/CHECKOUT (3 celdas reales,
     # no una sola combinada), asi cada valor queda en su propia casilla separada.
     row_pagos_valores = res_table.rows[4]
-    _set_cell_text(row_pagos_valores.cells[0], f"VALOR TOTAL: $ {data.valor_total}")
-    _set_cell_text(row_pagos_valores.cells[2], f"VALOR ABONADO: $ {data.valor_abonado}")
-    _set_cell_text(row_pagos_valores.cells[3], f"VALOR RESTANTE: $ {data.valor_restante}")
+    _set_cell_label_value(row_pagos_valores.cells[0], "VALOR TOTAL: $ ", data.valor_total.upper())
+    _set_cell_label_value(row_pagos_valores.cells[2], "VALOR ABONADO: $ ", data.valor_abonado.upper())
+    _set_cell_label_value(row_pagos_valores.cells[3], "VALOR RESTANTE: $ ", data.valor_restante.upper())
 
     row_hotel = res_table.rows[5]
-    _set_cell_text(row_hotel.cells[0], f"HOTEL:    {data.hotel}")
-    _set_cell_text(row_hotel.cells[2], f"CHECK IN: {data.check_in}")
-    _set_cell_text(row_hotel.cells[3], f"CHECK OUT: {data.check_out}")
+    _set_cell_label_value(row_hotel.cells[0], "HOTEL:    ", data.hotel.upper())
+    _set_cell_label_value(row_hotel.cells[2], "CHECK IN: ", data.check_in.upper())
+    _set_cell_label_value(row_hotel.cells[3], "CHECK OUT: ", data.check_out.upper())
 
     # fila 8 (DATOS DE LOS PASAJEROS: NOMBRE, en indice 7) es la plantilla de encabezado con
     # 2 celdas reales (NOMBRE | DOCUMENTO). Se elimina la fila original combinada de un solo
@@ -250,8 +296,8 @@ def _fill_reservation_table(tables: list[Table], data: ContratoTurismo) -> None:
         _clone_row_after(res_table, template_row_index=7, after_row_index=last_index)
         last_index += 1
         new_row = res_table.rows[last_index]
-        _set_cell_text(new_row.cells[0], pax.nombre)
-        _set_cell_text(new_row.cells[2], pax.documento)
+        _set_cell_text(new_row.cells[0], pax.nombre.upper())
+        _set_cell_text(new_row.cells[2], pax.documento.upper())
 
 
 def _fill_incluye_no_incluye(tables: list[Table], data: ContratoTurismo) -> None:
@@ -284,19 +330,23 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
 
     if data.itinerario.strip():
         title_p = _paragraph_after(anchor, center=True)
-        title_p.add_run("ITINERARIO").bold = True
+        title_run = title_p.add_run("ITINERARIO")
+        title_run.bold = True
+        _force_black(title_run)
         anchor = title_p._p
         for line in data.itinerario.split("\n"):
             body_p = _paragraph_after(anchor)
             if line.strip():
-                body_p.add_run(line)
+                _force_black(body_p.add_run(line))
             anchor = body_p._p
 
     if data.tiquetes_imagen.strip():
         image_bytes = _decode_data_uri(data.tiquetes_imagen)
         if image_bytes:
             title_p = _paragraph_after(anchor, center=True)
-            title_p.add_run("Tiquetes aéreos").bold = True
+            title_run = title_p.add_run("Tiquetes aéreos")
+            title_run.bold = True
+            _force_black(title_run)
             anchor = title_p._p
 
             img_p = _paragraph_after(anchor, center=True)
@@ -319,7 +369,7 @@ def fill_contract(data: ContratoTurismo) -> bytes:
     _fill_reservation_table(tables, data)
     _fill_incluye_no_incluye(tables, data)
     _fill_itinerario_y_tiquetes(doc, data)
-    _replace_everywhere(doc, "T-XXX", data.confirmacion_reserva)
+    _replace_everywhere(doc, "T-XXX", data.confirmacion_reserva.upper())
 
     buffer = BytesIO()
     doc.save(buffer)

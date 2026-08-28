@@ -180,13 +180,18 @@
 
     html += `<div class="pv-card"><h2>Tiquetes aereos</h2>`;
     html += d.tiquetes_imagen
-      ? `<img src="${d.tiquetes_imagen}" alt="Tiquetes aereos" style="max-width:100%;border-radius:6px;" />`
-      : `<p class="muted">Sin imagen adjunta.</p>`;
+      ? `<img src="${d.tiquetes_imagen}" alt="Tiquetes aereos" style="max-width:100%;border-radius:6px;" />
+         <div class="actions-row" style="margin-top:10px;"><button type="button" class="btn-secondary" id="btn-cambiar-tiquetes">Cambiar imagen</button></div>`
+      : `<p class="muted">Sin imagen adjunta.</p>
+         <button type="button" class="btn-add" id="btn-cambiar-tiquetes">Adjuntar imagen de los tiquetes</button>`;
     html += `</div>`;
 
     html += `<div class="pv-card"><h2>Itinerario</h2><p>${escapeHtml(d.itinerario).replace(/\n/g, "<br/>") || "&mdash;"}</p></div>`;
 
     document.getElementById("preview-view").innerHTML = html;
+
+    const btnCambiarTiquetes = document.getElementById("btn-cambiar-tiquetes");
+    if (btnCambiarTiquetes) btnCambiarTiquetes.addEventListener("click", enterEditMode);
   }
 
   // ---------- PASO 2: modo edicion ----------

@@ -68,6 +68,56 @@ _HABITACION_RE = re.compile(r"^\s*habitaci[oó]n\s*:?\s*(?P<valor>.+)$", re.IGNO
 _BULLET_RE = re.compile(r"^[\s•\-\*•]+")
 _DDMMYYYY_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
 
+# Encabezados de seccion "incluye" / "no incluye", tolerando que vengan decorados con
+# emojis, mayusculas, "EL PLAN" / "EL PROGRAMA" delante, o dos puntos al final (p.ej.
+# "✨ EL PLAN INCLUYE:" o "🚫 EL PLAN NO INCLUYE:"). Sin esto, una linea de encabezado que
+# no sea EXACTAMENTE "no incluye" nunca activa el cambio de seccion y todo su contenido
+# termina metido dentro de "incluye".
+_NO_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+)?no\s*incluye\s*:?$")
+_INCLUYE_HEADER_RE = re.compile(r"^(el\s+(plan|programa)\s+)?incluye\s*:?$")
+
+# Encabezados de dia en un itinerario (p.ej. "DIA 1: Santiago", "Día 2 - Cartagena").
+_DIA_HEADER_RE = re.compile(r"^d[ií]a\s+\d+\b", re.IGNORECASE)
+
+
+def _strip_decorations(s: str) -> str:
+    """Quita emojis/simbolos y acentos de una linea para poder comparar solo las letras
+    (p.ej. '🚫 EL PLAN NO INCLUYE:' -> 'el plan no incluye:')."""
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"[^a-zA-Z0-9:\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip().lower()
+    return s
+
+
+def _normalize_itinerario_lines(lines: list[str]) -> list[str]:
+    """Organiza el itinerario pegado por el asesor: colapsa lineas en blanco consecutivas
+    (a menudo vienen 2-3 seguidas al copiar de Word/correo) a una sola linea en blanco
+    entre bloques, quita blancos sobrantes al inicio/final, y pega un encabezado de dia
+    ("DIA 1: ...") directamente con la linea de descripcion que sigue, sin dejar salto de
+    parrafo entre el titulo y su texto."""
+    collapsed: list[str] = []
+    for line in lines:
+        s = line.strip()
+        if s:
+            collapsed.append(s)
+        elif collapsed and collapsed[-1] != "":
+            collapsed.append("")
+    while collapsed and collapsed[-1] == "":
+        collapsed.pop()
+    while collapsed and collapsed[0] == "":
+        collapsed.pop(0)
+
+    out: list[str] = []
+    i = 0
+    while i < len(collapsed):
+        line = collapsed[i]
+        out.append(line)
+        i += 1
+        if line and _DIA_HEADER_RE.match(line) and i < len(collapsed) and collapsed[i] == "":
+            i += 1
+    return out
+
 
 def _clean_money(value: str) -> str:
     return value.replace("$", "").strip().strip("-").strip()
@@ -208,8 +258,12 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
             continue
 
         lowered = stripped.lower().rstrip(":")
-        if lowered == "no incluye":
+        decorated = _strip_decorations(stripped)
+        if _NO_INCLUYE_HEADER_RE.match(decorated):
             section = "no_incluye"
+            continue
+        if _INCLUYE_HEADER_RE.match(decorated):
+            section = "incluye"
             continue
         if lowered == "itinerario":
             section = "itinerario"
@@ -240,7 +294,7 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
     data["habitacion"] = habitacion
     data["incluye"] = "\n".join(incluye_lines)
     data["no_incluye"] = "\n".join(no_incluye_lines)
-    data["itinerario"] = "\n".join(itinerario_lines).strip("\n")
+    data["itinerario"] = "\n".join(_normalize_itinerario_lines(itinerario_lines))
     return data
 
 
@@ -398,7 +452,7 @@ def _parse_labeled_format(text: str) -> dict:
     if no_incluye_lines:
         data["no_incluye"] = "\n".join(no_incluye_lines)
     if itinerario_lines:
-        data["itinerario"] = "\n".join(itinerario_lines).strip("\n")
+        data["itinerario"] = "\n".join(_normalize_itinerario_lines(itinerario_lines))
     return data
 
 
