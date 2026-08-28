@@ -44,9 +44,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+if not settings.session_secret:
+    # Sin SESSION_SECRET no hay forma segura de firmar las sesiones. Antes esto caia en
+    # un secreto fijo ("dev-secret-cambia-esto") visible en el propio repositorio, lo que
+    # le permitiria a cualquiera fabricar una cookie de sesion valida (incluida una de
+    # administrador) sin usuario ni clave. Mejor que la app no arranque a que arranque
+    # insegura: definila en las variables de entorno (ver .env.example) con
+    # python -c "import secrets; print(secrets.token_hex(32))"
+    raise RuntimeError(
+        "Falta la variable de entorno SESSION_SECRET. La aplicacion no puede arrancar sin "
+        "ella (ver .env.example)."
+    )
+
 app.add_middleware(
     SessionMiddleware,
-    secret_key=settings.session_secret or "dev-secret-cambia-esto",
+    secret_key=settings.session_secret,
     same_site="strict",
     https_only=IS_HTTPS,
     max_age=8 * 60 * 60,
