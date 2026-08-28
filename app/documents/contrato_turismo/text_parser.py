@@ -132,6 +132,19 @@ def _clean_money(value: str) -> str:
     return value.replace("$", "").strip().strip("-").strip()
 
 
+# Rellenos tipicos que un asesor pone cuando un dato todavia no se sabe (p.ej. el hotel
+# no esta asignado aun) -- para efectos de validacion deben tratarse como vacios, no como
+# si fueran el nombre real de un hotel.
+_EMPTY_PLACEHOLDER_VALUES = {
+    "-", "--", "n/a", "na", "ninguno", "pendiente", "sin definir", "por definir", "tbd",
+}
+
+
+def is_placeholder_empty(value: str) -> bool:
+    v = (value or "").strip().lower().replace(".", "")
+    return not v or v in _EMPTY_PLACEHOLDER_VALUES
+
+
 def _split_sheet_row(line: str) -> list[str]:
     reader = csv.reader(io.StringIO(line), delimiter="\t", quotechar='"')
     return next(reader, [])
@@ -173,6 +186,7 @@ def format_fecha_reserva(raw: str) -> str:
 
 
 def _parse_sheet_row(cells: list[str]) -> dict:
+    hotel = _col(cells, COL_HOTEL)
     data: dict = {
         "asesor_comercial": _col(cells, COL_ASESOR),
         "confirmacion_reserva": _col(cells, COL_NUMERO_RESERVA),
@@ -186,7 +200,10 @@ def _parse_sheet_row(cells: list[str]) -> dict:
         "valor_abonado": _clean_money(_col(cells, COL_ABONO)),
         "valor_restante": _clean_money(_col(cells, COL_DEBE)),
         "cantidad_personas": _col(cells, COL_CANTIDAD_PERSONAS),
-        "hotel": _col(cells, COL_HOTEL),
+        # un guion suelto, "N/A", "pendiente", etc. quieren decir que el hotel todavia no
+        # se sabe -- se deja vacio para que quede marcado como dato faltante y lo llenen
+        # a mano, en vez de tomar ese relleno como si fuera el nombre real del hotel.
+        "hotel": "" if is_placeholder_empty(hotel) else hotel,
     }
 
     direccion = _col(cells, COL_DIRECCION)
@@ -430,6 +447,8 @@ def _parse_labeled_format(text: str) -> dict:
             field = SCALAR_LABELS[label]
             if field == "fecha_reserva":
                 value = format_fecha_reserva(value)
+            elif field == "hotel" and is_placeholder_empty(value):
+                value = ""
             scalars[field] = value
             continue
 

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.documents.contrato_turismo.text_parser import is_placeholder_empty
+
 
 class Pago(BaseModel):
     fecha: str = ""
@@ -77,7 +79,12 @@ REQUIRED_SIMPLE_FIELDS = [
 def missing_fields(data: ContratoTurismo) -> list[str]:
     missing: list[str] = []
     for field, label in REQUIRED_SIMPLE_FIELDS:
-        if not (getattr(data, field) or "").strip():
+        value = getattr(data, field) or ""
+        # el hotel a veces se llena a mano con un relleno tipo "-" o "N/A" cuando todavia
+        # no se sabe cual es -- eso cuenta como si el campo estuviera vacio, no como un
+        # nombre de hotel valido.
+        empty = is_placeholder_empty(value) if field == "hotel" else not value.strip()
+        if empty:
             missing.append(label)
 
     if not data.pagos:
