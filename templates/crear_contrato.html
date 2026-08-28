@@ -12,51 +12,21 @@
   <!-- PASO 1: pegar texto -->
   <section id="step-paste" class="step-panel active">
     <h1>{{ doc_type.title }}</h1>
+    <p class="muted">Pega la informacion en este orden (el sistema reconoce el formato automaticamente):</p>
+    <ol class="muted">
+      <li>Pega los datos del cuadro de ventas.</li>
+      <li>Pega los pasajeros que viajan con su documento.</li>
+      <li>Pega el incluye y no incluye.</li>
+      <li>Pega el tipo de habitacion.</li>
+      <li>Pega el itinerario (si aplica).</li>
+    </ol>
     <p class="muted">
-      Pega directamente la fila de tu hoja de seguimiento de reservas (con o sin encabezados),
-      seguida de los pasajeros acompañantes ("Nombre - CC 123..."), opcionalmente la habitacion
-      ("Habitacion: Estandar"), el programa incluye / no incluye, y si aplica el itinerario
-      ("Itinerario" seguido de los dias). El sistema reconoce ese formato automaticamente. La
-      imagen de los tiquetes aereos se adjunta en el siguiente paso.
-    </p>
-    <p class="muted">
-      Tambien puedes escribir los datos a mano con el formato <strong>Etiqueta: valor</strong>
-      (una linea por dato, el orden no importa) usando el boton de abajo.
+      La imagen de los tiquetes aereos se adjunta en el siguiente paso. Tambien puedes
+      escribir los datos a mano con el formato <strong>Etiqueta: valor</strong> (una linea
+      por dato, el orden no importa).
     </p>
 
-    <div class="actions-row">
-      <button type="button" class="btn-secondary" id="btn-plantilla">Usar plantilla</button>
-    </div>
-
-    <textarea id="paste-textarea" rows="18" placeholder="Asesor: Juan Perez
-Cliente: Maria Gomez
-Cedula: 1020304050
-Telefono: 3001234567
-Correo: maria@correo.com
-Direccion: Calle 10 #20-30, Medellin
-Destino: Cancun
-Confirmacion: APT-2026-001
-Valor total: 8500000
-Valor abonado: 2000000
-Valor restante: 6500000
-Fecha limite pago: 15 de septiembre de 2026
-Pago: 20 de agosto de 2026 - 2000000
-Pago: 15 de septiembre de 2026 - 6500000
-Programa: Cancun
-Fecha reserva: 10/10/2026 al 15/10/2026
-Hotel: Riu Cancun
-Habitacion: Doble
-Cantidad de personas: 2
-Check in: 15:00
-Check out: 12:00
-Pasajero: Maria Gomez - 1020304050
-Pasajero: Carlos Gomez - 1020304051
-Adicional: Carlos Gomez - 1020304051
-Incluye: Tiquetes aereos ida y regreso
-Incluye: Hotel todo incluido
-No incluye: Gastos personales
-Itinerario: Dia 1: Llegada y traslado al hotel.
-Dia 2: Dia libre para actividades opcionales."></textarea>
+    <textarea id="paste-textarea" rows="18" placeholder="Pega aqui los datos"></textarea>
 
     <div class="error-box" id="paste-error" hidden></div>
 
