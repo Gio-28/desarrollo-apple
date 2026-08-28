@@ -9,6 +9,7 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 MIN_PASSWORD_LENGTH = 10
 OTP_TTL_MINUTES = 10
+OTP_RESEND_COOLDOWN_SECONDS = 30
 TRUSTED_DEVICE_DAYS = 30
 TRUSTED_DEVICE_COOKIE = "trusted_device"
 
@@ -78,6 +79,16 @@ def new_csrf_token() -> str:
 
 def constant_time_eq(a: str, b: str) -> bool:
     return secrets.compare_digest(a or "", b or "")
+
+
+def safe_next_path(path: str | None) -> str:
+    """Evita un 'open redirect': solo permite redirigir despues del login a una ruta
+    relativa DENTRO del propio sitio. Rechaza cualquier cosa que no empiece exactamente
+    con un solo '/' -- en particular '//evil.com' o '/\\evil.com', que los navegadores
+    tratan como una URL absoluta a otro dominio aunque empiecen con '/'."""
+    if not path or not path.startswith("/") or path.startswith("//") or path.startswith("/\\"):
+        return "/"
+    return path
 
 
 def generate_device_token() -> str:

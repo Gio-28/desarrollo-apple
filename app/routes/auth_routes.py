@@ -17,6 +17,7 @@ from app.auth import (
 )
 from app.config import settings
 from app.security import (
+    OTP_RESEND_COOLDOWN_SECONDS,
     OTP_TTL_MINUTES,
     TRUSTED_DEVICE_COOKIE,
     TRUSTED_DEVICE_DAYS,
@@ -28,6 +29,7 @@ from app.security import (
     is_locked,
     lockout_remaining_seconds,
     password_is_strong,
+    safe_next_path,
     verify_password,
 )
 from app.services.email_client import send_otp_email
@@ -73,7 +75,7 @@ def _pending_user(request: Request) -> dict | None:
 def _finish_login(request: Request, user: dict) -> RedirectResponse:
     reset_failed_attempts(user["id"])
     request.session["user"] = {"id": user["id"], "username": user["username"], "is_admin": user["is_admin"]}
-    for key in ("pending_user_id", "pending_otp_code", "pending_otp_expires"):
+    for key in ("pending_user_id", "pending_otp_code", "pending_otp_expires", "pending_otp_sent_at"):
         request.session.pop(key, None)
     next_path = request.session.pop("post_login_redirect", "/") or "/"
     return RedirectResponse(url=next_path, status_code=303)
@@ -82,20 +84,25 @@ def _finish_login(request: Request, user: dict) -> RedirectResponse:
 def _send_login_code(request: Request, user: dict) -> str | None:
     """Genera y envia el codigo de verificacion. Devuelve un mensaje de error, o None si fue bien."""
     code = generate_otp_code()
-    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=OTP_TTL_MINUTES)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expires = now + datetime.timedelta(minutes=OTP_TTL_MINUTES)
     request.session["pending_otp_code"] = code
     request.session["pending_otp_expires"] = expires.isoformat()
+    request.session["pending_otp_sent_at"] = now.isoformat()
     try:
         send_otp_email(user["email"], code)
-    except Exception as exc:  # noqa: BLE001
-        return f"No se pudo enviar el codigo por correo ({exc}). Contacta a un administrador."
+    except Exception:  # noqa: BLE001
+        # no se expone el detalle interno del error (servidor SMTP, credenciales, etc.)
+        # a alguien que todavia no ha terminado de autenticarse
+        return "No se pudo enviar el codigo por correo. Contacta a un administrador."
     return None
 
 
 @router.get("/login")
 async def login_page(request: Request, next: str = "/", error: str | None = None):
+    next = safe_next_path(next)
     if current_user(request):
-        return RedirectResponse(url=next or "/")
+        return RedirectResponse(url=next)
     return templates.TemplateResponse(
         "login.html",
         {"request": request, "next": next, "error": error, "csrf_token": get_csrf_token(request)},
@@ -111,6 +118,7 @@ async def login_submit(
     csrf_token: str = Form(...),
     next: str = Form("/"),
 ):
+    next = safe_next_path(next)
     session_csrf = request.session.get("csrf_token")
     generic_error = "Usuario o contraseña incorrectos."
 
@@ -319,6 +327,22 @@ async def verificar_codigo_reenviar(request: Request, csrf_token: str = Form(...
     user = _pending_user(request)
     if not user or not constant_time_eq(csrf_token, session_csrf or ""):
         return RedirectResponse(url="/login")
+
+    last_sent_raw = request.session.get("pending_otp_sent_at")
+    if last_sent_raw:
+        elapsed = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(last_sent_raw)).total_seconds()
+        if elapsed < OTP_RESEND_COOLDOWN_SECONDS:
+            wait = max(1, int(OTP_RESEND_COOLDOWN_SECONDS - elapsed))
+            return templates.TemplateResponse(
+                "verificar_codigo.html",
+                {
+                    "request": request,
+                    "error": f"Espera {wait} segundos antes de pedir otro codigo.",
+                    "email": user["email"],
+                    "csrf_token": get_csrf_token(request),
+                },
+                status_code=429,
+            )
 
     err = _send_login_code(request, user)
     return templates.TemplateResponse(
