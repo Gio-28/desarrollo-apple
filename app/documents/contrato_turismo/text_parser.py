@@ -70,6 +70,14 @@ _PASAJERO_RE = re.compile(
     rf"^\s*(?P<nombre>.+?)\s*(?:-\s*|[\t ]{{2,}})?{_DOC_LABEL}\s*[:.]?\s*(?P<doc>[A-Za-z0-9.]{{4,}})\s*$",
     re.IGNORECASE,
 )
+# Algunos asesores pegan el pasajero sin ninguna etiqueta de documento, solo "Nombre 123456"
+# (el numero de cedula pegado tal cual detras del nombre). Sin esta variante, esa linea no
+# calzaba con _PASAJERO_RE y el nombre terminaba clasificado como contenido de "incluye".
+# Se exige un numero de al menos 6 digitos (la cedula colombiana real mas corta) al final de
+# la linea, para no confundir un item de la lista de incluye/no incluye que de casualidad
+# termine en un numero corto (p.ej. "10 kg" o un precio redondo sin el simbolo "$").
+_PASAJERO_SIN_LABEL_RE = re.compile(r"^\s*(?P<nombre>[^\d]+?)\s*(?P<doc>\d{6,15})\s*$")
+_TIENE_LETRA_RE = re.compile(r"[^\W\d_]", re.UNICODE)
 _HABITACION_RE = re.compile(r"^\s*habitaci[oó]n\s*:?\s*(?P<valor>.+)$", re.IGNORECASE)
 # Ademas de simbolos de vinieta normales, algunas listas pegadas desde Word usan la letra
 # "o" como vinieta (seguida de un tab o varios espacios) -- no se quita un "o" seguido de
@@ -286,8 +294,13 @@ def _parse_sheet_format(lines: list[str]) -> dict | None:
             continue
         m = _PASAJERO_RE.match(stripped)
         if not m:
+            m = _PASAJERO_SIN_LABEL_RE.match(stripped)
+            if m and not _TIENE_LETRA_RE.search(m.group("nombre")):
+                m = None
+        if not m:
             break
-        acompanantes.append({"nombre": m.group("nombre").strip(), "doc": m.group("doc").strip()})
+        nombre = m.group("nombre").strip(" \t-")
+        acompanantes.append({"nombre": nombre, "doc": m.group("doc").strip()})
         i += 1
 
     # a veces la hoja lista al titular de nuevo en el bloque de pasajeros (p.ej. con su
@@ -442,6 +455,17 @@ def _split_pair(value: str) -> tuple[str, str]:
     return value.strip(), ""
 
 
+def _split_persona(value: str) -> tuple[str, str]:
+    """Divide el valor de una linea 'Pasajero:'/'Adicional:' en (nombre, documento).
+    Intenta primero los mismos formatos de nombre+documento del formato de hoja de calculo
+    (con etiqueta "CC"/"TI"/etc, o "Nombre 123456" sin ninguna etiqueta) antes de caer al
+    separador generico " - ", para que tambien funcione si lo pegan sin guion."""
+    m = _PASAJERO_RE.match(value) or _PASAJERO_SIN_LABEL_RE.match(value)
+    if m and _TIENE_LETRA_RE.search(m.group("nombre")):
+        return m.group("nombre").strip(" \t-"), m.group("doc").strip()
+    return _split_pair(value)
+
+
 def _parse_labeled_format(text: str) -> dict:
     scalars: dict[str, str] = {}
     pagos: list[dict] = []
@@ -482,10 +506,10 @@ def _parse_labeled_format(text: str) -> dict:
                 fecha, valor = _split_pair(value)
                 pagos.append({"fecha": fecha, "valor": valor})
             elif kind == "pasajeros":
-                nombre, doc = _split_pair(value)
+                nombre, doc = _split_persona(value)
                 pasajeros.append({"nombre": nombre, "documento": doc})
             elif kind == "adicionales":
-                nombre, cedula = _split_pair(value)
+                nombre, cedula = _split_persona(value)
                 adicionales.append({"nombre": nombre, "cedula": cedula})
             elif kind == "incluye":
                 incluye_lines.append(value)
@@ -494,6 +518,17 @@ def _parse_labeled_format(text: str) -> dict:
             elif kind == "itinerario":
                 in_itinerario = True
                 itinerario_lines.append(value)
+
+    # el titular (cliente) siempre viaja: si no se pego explicitamente una linea
+    # "Pasajero: ..." para el, se agrega solo -- igual que en el formato de hoja de calculo
+    # (ver _parse_sheet_format), para que un viaje de una sola persona no quede sin
+    # pasajeros por el simple hecho de saltarse ese paso.
+    titular_nombre = scalars.get("cliente_nombre", "").strip()
+    titular_cedula = scalars.get("cliente_cedula", "").strip()
+    if titular_nombre:
+        titular_norm = _norm_name(titular_nombre)
+        pasajeros = [p for p in pasajeros if _norm_name(p["nombre"]) != titular_norm]
+        pasajeros = [{"nombre": titular_nombre, "documento": titular_cedula}, *pasajeros]
 
     data = dict(scalars)
     data["pagos"] = pagos

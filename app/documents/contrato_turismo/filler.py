@@ -201,15 +201,16 @@ def _fill_empresa_cliente_tables(tables: list[Table], data: ContratoTurismo) -> 
     empresa_table, cliente_table = tables[0], tables[1]
 
     # EMPRESA -> fila 7 (ASESOR COMERCIAL) columna valor
-    _set_cell_text(empresa_table.rows[7].cells[1], data.asesor_comercial)
+    _set_cell_text(empresa_table.rows[7].cells[1], data.asesor_comercial.upper())
 
-    # CLIENTE -> filas 0..6
-    _set_cell_text(cliente_table.rows[0].cells[1], data.cliente_nombre)
-    _set_cell_text(cliente_table.rows[1].cells[1], data.cliente_cedula)
-    _set_cell_text(cliente_table.rows[2].cells[1], data.cliente_direccion)
-    _set_cell_text(cliente_table.rows[3].cells[1], data.cliente_telefono)
-    _set_cell_text(cliente_table.rows[4].cells[1], data.cliente_correo)
-    _set_cell_text(cliente_table.rows[5].cells[1], data.destino)
+    # CLIENTE -> filas 0..6. Todo en mayuscula (como el resto del contrato), sin importar
+    # como haya quedado el texto pegado por el asesor.
+    _set_cell_text(cliente_table.rows[0].cells[1], data.cliente_nombre.upper())
+    _set_cell_text(cliente_table.rows[1].cells[1], data.cliente_cedula.upper())
+    _set_cell_text(cliente_table.rows[2].cells[1], data.cliente_direccion.upper())
+    _set_cell_text(cliente_table.rows[3].cells[1], data.cliente_telefono.upper())
+    _set_cell_text(cliente_table.rows[4].cells[1], data.cliente_correo.upper())
+    _set_cell_text(cliente_table.rows[5].cells[1], data.destino.upper())
     _set_cell_text(cliente_table.rows[6].cells[1], data.confirmacion_reserva.upper())
 
 
@@ -256,12 +257,12 @@ def _fill_beneficiarios_adicionales(doc, data: ContratoTurismo) -> None:
     for i, p in enumerate(blanks):
         if i < len(pasajeros):
             b = pasajeros[i]
-            _set_paragraph_text(p, f"{b.nombre}          C.C. {b.documento}")
+            _set_paragraph_text(p, f"{b.nombre.upper()}          C.C. {b.documento.upper()}")
 
     last_p = blanks[-1]
     for i in range(len(blanks), len(pasajeros)):
         b = pasajeros[i]
-        last_p = _insert_paragraph_after(last_p, f"{b.nombre}          C.C. {b.documento}")
+        last_p = _insert_paragraph_after(last_p, f"{b.nombre.upper()}          C.C. {b.documento.upper()}")
 
 
 def _fill_signature_block(doc, data: ContratoTurismo) -> None:
@@ -275,7 +276,7 @@ def _fill_signature_block(doc, data: ContratoTurismo) -> None:
     if el_cliente_p:
         for run in el_cliente_p.runs:
             if "EL CLIENTE" in run.text:
-                run.text = run.text.replace("EL CLIENTE", data.cliente_nombre)
+                run.text = run.text.replace("EL CLIENTE", data.cliente_nombre.upper())
 
     fecha_p = _find_paragraph(doc.paragraphs, "Una vez leído en su integridad")
     if fecha_p and len(fecha_p.runs) >= 6:
