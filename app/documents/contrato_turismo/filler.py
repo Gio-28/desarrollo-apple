@@ -19,12 +19,13 @@ from pathlib import Path
 import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
-from docx.shared import Inches, RGBColor
+from docx.shared import Inches, Pt, RGBColor
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
 from app.documents.contrato_turismo.schema import ContratoTurismo
 from app.documents.contrato_turismo.text_parser import (
+    _DIA_HEADER_RE,
     _INCLUYE_HEADER_RE,
     _NO_INCLUYE_HEADER_RE,
     _normalize_itinerario_lines,
@@ -43,6 +44,30 @@ BLACK = RGBColor(0, 0, 0)
 
 def _force_black(run) -> None:
     run.font.color.rgb = BLACK
+
+
+def _match_body_font(run) -> None:
+    """Iguala la fuente de 'run' a la que usa el resto del cuerpo del contrato (Calibri
+    11pt, el tema de la plantilla). Un parrafo creado desde cero con doc.add_paragraph()
+    (como los del itinerario) no hereda esa fuente: hereda la del estilo "Normal" de la
+    plantilla, que es otra (Corbel 12pt) -- por eso se ve una tipografia distinta al resto
+    del documento si no se fuerza aqui."""
+    run.font.name = "Calibri"
+    run.font.size = Pt(11)
+    _force_black(run)
+
+
+def _reset_new_paragraph_spacing(paragraph: Paragraph) -> None:
+    """Un parrafo creado desde cero con doc.add_paragraph() (sin clonar uno existente de
+    la plantilla) no trae su propio w:spacing: hereda el de los valores por defecto del
+    documento (espacio despues de cada parrafo + interlineado ampliado), pensado para
+    parrafos de texto normal, no para lineas sueltas de una lista como el itinerario --
+    ahi se ve como espacios de sobra entre cada linea. Se fuerza aqui a interlineado
+    sencillo y sin espacio extra."""
+    fmt = paragraph.paragraph_format
+    fmt.space_before = Pt(0)
+    fmt.space_after = Pt(0)
+    fmt.line_spacing = 1.0
 
 
 # --------------------------------------------------------------------------
@@ -388,11 +413,14 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
     existe en la plantilla original: se insertan como parrafos nuevos."""
     anchor = doc.tables[6]._tbl  # tabla "EL PROGRAMA NO INCLUYE", ultimo bloque de la plantilla
 
-    def _paragraph_after(after_element, center: bool = False):
+    def _paragraph_after(after_element, center: bool = False, justify: bool = False):
         p = doc.add_paragraph()
         after_element.addnext(p._p)
+        _reset_new_paragraph_spacing(p)
         if center:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif justify:
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         return p
 
     if data.itinerario.strip():
@@ -406,12 +434,17 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
         title_p = _paragraph_after(anchor, center=True)
         title_run = title_p.add_run("ITINERARIO")
         title_run.bold = True
-        _force_black(title_run)
+        _match_body_font(title_run)
         anchor = title_p._p
         for line in itinerario_lines:
-            body_p = _paragraph_after(anchor)
-            if line.strip():
-                _force_black(body_p.add_run(line))
+            body_p = _paragraph_after(anchor, justify=True)
+            stripped = line.strip()
+            if stripped:
+                run = body_p.add_run(stripped)
+                _match_body_font(run)
+                # los encabezados "DIA 1: ..." se resaltan en negrilla para que se
+                # perciban como titulos del dia a dia, no como una linea de texto mas.
+                run.bold = bool(_DIA_HEADER_RE.match(stripped))
             anchor = body_p._p
 
     if data.tiquetes_imagen.strip():
@@ -420,7 +453,7 @@ def _fill_itinerario_y_tiquetes(doc, data: ContratoTurismo) -> None:
             title_p = _paragraph_after(anchor, center=True)
             title_run = title_p.add_run("TIQUETES AÉREOS")
             title_run.bold = True
-            _force_black(title_run)
+            _match_body_font(title_run)
             anchor = title_p._p
 
             img_p = _paragraph_after(anchor, center=True)

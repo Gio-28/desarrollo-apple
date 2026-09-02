@@ -57,7 +57,9 @@ COL_VALOR_TOTAL = 22
 COL_ABONO = 23
 COL_DEBE = 24
 COL_HOTEL = 35
-COL_ACUERDOS_PAGO_START = 72  # 4 pares (valor, fecha) desde aqui: 72/73, 74/75, 76/77, 78/79
+COL_ACUERDOS_PAGO_START = 72  # pares (valor, fecha) desde aqui: 72/73, 74/75, 76/77, 78/79, ...
+# hasta donde llegue la fila -- la hoja normalmente trae 4, pero si el asesor agrega mas
+# acuerdos de pago (columnas de mas a la derecha), tambien se leen.
 
 MIN_TABS_SHEET_ROW = 40  # umbral para reconocer una fila de la hoja (tiene ~79 tabs)
 
@@ -247,13 +249,15 @@ def _parse_sheet_row(cells: list[str]) -> dict:
     data["fecha_reserva"] = format_fecha_reserva(raw_fecha)
 
     pagos = []
-    for i in range(4):
+    i = 0
+    while COL_ACUERDOS_PAGO_START + i * 2 < len(cells):
         idx_valor = COL_ACUERDOS_PAGO_START + i * 2
         idx_fecha = idx_valor + 1
         valor = _clean_money(_col(cells, idx_valor))
         fecha = _col(cells, idx_fecha)
         if valor or fecha:
             pagos.append({"fecha": fecha, "valor": valor})
+        i += 1
     data["pagos"] = pagos
     data["fecha_limite_pago"] = pagos[-1]["fecha"] if pagos else ""
 
