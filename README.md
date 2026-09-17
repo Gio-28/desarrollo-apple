@@ -75,17 +75,19 @@ En Vercel, el proyecto ya tiene conectada una base de datos Postgres (Neon, plan
 que guarda los usuarios. La variable `DATABASE_URL` la inyecta Vercel automaticamente — no
 hay que configurarla a mano en producción.
 
-### 2. Correo para los codigos de verificacion (Resend)
+### 2. Correo para los codigos de verificacion (SendGrid)
 
 Vercel bloquea las conexiones SMTP salientes en sus funciones (puertos 25/465/587), asi
-que el envio de los codigos de 2FA se hace por la API HTTPS de **Resend** en vez de SMTP:
+que el envio de los codigos de 2FA se hace por la API HTTPS de **SendGrid** en vez de SMTP.
+Se eligio SendGrid (en vez de Resend) porque permite verificar un solo correo por
+confirmacion (sin tocar DNS del dominio):
 
-1. Crea una cuenta gratis en [resend.com](https://resend.com) (100 correos/dia gratis).
-2. En **API Keys**, crea una y guardala como `RESEND_API_KEY`.
-3. Para enviar solo de prueba, se puede dejar `RESEND_FROM` con el remitente de pruebas
-   `Apple Travel <onboarding@resend.dev>`. Para produccion con el dominio propio, verifica
-   el dominio en Resend (**Domains** → agregar registros DNS) y usa un remitente de ese
-   dominio, ej. `Apple Travel <codigos@appletravel.com.co>`.
+1. Crea una cuenta gratis en [sendgrid.com](https://sendgrid.com).
+2. Ve a **Settings → Sender Authentication → Single Sender Verification** y verifica un
+   correo (ej. el mismo que uses para administrar estas herramientas) dando clic al link
+   de confirmacion que llega a esa bandeja. Ese correo va en `SENDGRID_FROM`.
+3. En **Settings → API Keys**, crea una API Key (permisos "Mail Send" basta) y guardala
+   como `SENDGRID_API_KEY`.
 
 ## Configuracion local
 
@@ -121,10 +123,10 @@ tabla de usuarios esta vacia).
 3. Conecta una base de datos Postgres (recomendado: Neon, desde el tab **Storage** del
    proyecto en Vercel) — esto crea `DATABASE_URL` automaticamente.
 4. En **Settings → Environment Variables**, agrega: `SESSION_SECRET`, `BASE_URL`
-   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `RESEND_API_KEY`
-   (y opcionalmente `RESEND_FROM`), y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD`
-   para el primer arranque (bootstrap del primer administrador). `DROPBOX_SIGN_API_KEY`
-   solo hace falta si reactivas el envio automatico a firma (ver nota mas arriba).
+   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `SENDGRID_API_KEY`,
+   `SENDGRID_FROM`, y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el primer
+   arranque (bootstrap del primer administrador). `DROPBOX_SIGN_API_KEY` solo hace falta
+   si reactivas el envio automatico a firma (ver nota mas arriba).
 5. Despliega.
 
 ## Estructura del proyecto
@@ -135,7 +137,7 @@ app/main.py                         arma la app FastAPI (sesiones, cabeceras de 
 app/db.py                           conexion a Postgres + creacion de tabla de usuarios
 app/security.py                     hash de contraseñas, codigos OTP, CSRF, bloqueo de cuenta
 app/auth.py                         acceso a datos de usuarios + sesion
-app/services/email_client.py        envia el codigo de verificacion por correo (API Resend)
+app/services/email_client.py        envia el codigo de verificacion por correo (API SendGrid)
 app/routes/auth_routes.py           login, cambio de clave forzado, correo/codigo de verificacion
 app/routes/admin_routes.py          panel de administracion de usuarios
 app/documents/                      un modulo por cada tipo de documento

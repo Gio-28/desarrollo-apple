@@ -15,8 +15,8 @@ class Settings:
     admin_username: str = os.environ.get("ADMIN_USERNAME", "")
     admin_password: str = os.environ.get("ADMIN_PASSWORD", "")
 
-    resend_api_key: str = os.environ.get("RESEND_API_KEY", "")
-    resend_from: str = os.environ.get("RESEND_FROM", "Apple Travel <onboarding@resend.dev>")
+    sendgrid_api_key: str = os.environ.get("SENDGRID_API_KEY", "")
+    sendgrid_from: str = os.environ.get("SENDGRID_FROM", "")
 
 
 settings = Settings()
