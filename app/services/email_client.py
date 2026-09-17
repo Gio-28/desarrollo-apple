@@ -1,9 +1,9 @@
-import smtplib
-import ssl
-from email.mime.text import MIMEText
+import httpx
 
 from app.config import settings
 from app.security import OTP_TTL_MINUTES
+
+API_URL = "https://api.resend.com/emails"
 
 
 def send_otp_email(to_email: str, code: str) -> None:
@@ -12,13 +12,16 @@ def send_otp_email(to_email: str, code: str) -> None:
         f"    {code}\n\n"
         f"Vence en {OTP_TTL_MINUTES} minutos. Si tu no intentaste iniciar sesion, ignora este mensaje."
     )
-    msg = MIMEText(body)
-    msg["Subject"] = "Codigo de verificacion - Apple Travel"
-    msg["From"] = settings.smtp_from or settings.smtp_user
-    msg["To"] = to_email
-
-    context = ssl.create_default_context()
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-        server.starttls(context=context)
-        server.login(settings.smtp_user, settings.smtp_password)
-        server.sendmail(settings.smtp_from or settings.smtp_user, [to_email], msg.as_string())
+    response = httpx.post(
+        API_URL,
+        headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+        json={
+            "from": settings.resend_from,
+            "to": [to_email],
+            "subject": "Codigo de verificacion - Apple Travel",
+            "text": body,
+        },
+        timeout=15,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(f"Resend error {response.status_code}: {response.text}")
