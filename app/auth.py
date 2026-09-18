@@ -4,6 +4,7 @@ from fastapi import Request
 
 from app.db import ensure_db, get_conn
 from app.security import (
+    LOGIN_APPROVAL_TTL_MINUTES,
     MAX_FAILED_ATTEMPTS,
     LOCKOUT_MINUTES,
     hash_password,
@@ -61,6 +62,30 @@ def set_email(user_id: int, email: str) -> None:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("UPDATE users SET email = %s WHERE id = %s", (email, user_id))
         conn.commit()
+
+
+def set_totp_secret(user_id: int, secret: str) -> None:
+    """Guarda un secreto TOTP pendiente de confirmar (totp_enabled sigue en FALSE)."""
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE users SET totp_secret = %s, totp_enabled = FALSE WHERE id = %s", (secret, user_id))
+        conn.commit()
+
+
+def enable_totp(user_id: int) -> None:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE users SET totp_enabled = TRUE WHERE id = %s", (user_id,))
+        conn.commit()
+
+
+def reset_totp(user_id: int) -> None:
+    """Borra el Authenticator del usuario: en su proximo ingreso tendra que configurarlo de nuevo."""
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = %s", (user_id,))
+        conn.commit()
+    revoke_trusted_devices(user_id)
 
 
 def delete_user(user_id: int) -> None:
@@ -158,6 +183,65 @@ def revoke_trusted_devices(user_id: int) -> None:
     ensure_db()
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM trusted_devices WHERE user_id = %s", (user_id,))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Solicitudes de acceso (los asesores esperan la aprobacion de un administrador)
+# ---------------------------------------------------------------------------
+
+
+def create_login_request(user_id: int, user_agent: str = "", ip: str = "") -> int:
+    ensure_db()
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=LOGIN_APPROVAL_TTL_MINUTES)
+    with get_conn() as conn, conn.cursor() as cur:
+        # una sola solicitud viva por usuario: las anteriores pendientes quedan sin efecto
+        cur.execute("UPDATE login_requests SET status = 'denied' WHERE user_id = %s AND status IN ('pending', 'approved')", (user_id,))
+        cur.execute(
+            "INSERT INTO login_requests (user_id, expires_at, user_agent, ip) VALUES (%s, %s, %s, %s) RETURNING id",
+            (user_id, expires, user_agent[:255], ip[:64]),
+        )
+        request_id = cur.fetchone()["id"]
+        conn.commit()
+        return request_id
+
+
+def get_login_request(request_id: int, user_id: int) -> dict | None:
+    """Devuelve la solicitud solo si pertenece a ese usuario."""
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT * FROM login_requests WHERE id = %s AND user_id = %s", (request_id, user_id))
+        return cur.fetchone()
+
+
+def list_pending_login_requests() -> list[dict]:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """SELECT r.id, r.created_at, r.user_agent, r.ip, u.username
+               FROM login_requests r JOIN users u ON u.id = r.user_id
+               WHERE r.status = 'pending' AND r.expires_at > now()
+               ORDER BY r.created_at ASC"""
+        )
+        return cur.fetchall()
+
+
+def decide_login_request(request_id: int, approve: bool, decided_by: str) -> None:
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """UPDATE login_requests SET status = %s, decided_by = %s, decided_at = now()
+               WHERE id = %s AND status = 'pending' AND expires_at > now()""",
+            ("approved" if approve else "denied", decided_by, request_id),
+        )
+        conn.commit()
+
+
+def consume_login_request(request_id: int) -> None:
+    """Marca la solicitud aprobada como usada, para que no sirva para entrar dos veces."""
+    ensure_db()
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE login_requests SET status = 'used' WHERE id = %s", (request_id,))
         conn.commit()
 
 

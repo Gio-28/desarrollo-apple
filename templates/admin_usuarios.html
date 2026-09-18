@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Usuarios - Apple Travel{% endblock %}
+{% block head %}{% if solicitudes %}<meta http-equiv="refresh" content="15" />{% endif %}{% endblock %}
 {% block content %}
 <div class="home-wrap">
   <h1>Usuarios</h1>
@@ -21,6 +22,40 @@
   {% endif %}
 
   <div class="edit-card">
+    <h2>Solicitudes de ingreso{% if solicitudes %} ({{ solicitudes|length }}){% endif %}</h2>
+    {% if solicitudes %}
+    <p class="muted">Aprueba solo si reconoces a la persona que esta intentando entrar ahora.</p>
+    <table class="users-table">
+      <thead>
+        <tr><th>Usuario</th><th>Hora</th><th>IP</th><th>Dispositivo</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in solicitudes %}
+        <tr>
+          <td>{{ s.username }}</td>
+          <td>{{ s.created_at.strftime("%H:%M:%S") }}</td>
+          <td>{{ s.ip or "-" }}</td>
+          <td>{{ (s.user_agent or "-")[:60] }}</td>
+          <td class="users-actions">
+            <form method="post" action="/admin/solicitudes/{{ s.id }}/aprobar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button type="submit" class="btn-primary">Aprobar</button>
+            </form>
+            <form method="post" action="/admin/solicitudes/{{ s.id }}/rechazar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button type="submit" class="btn-link btn-link-danger">Rechazar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No hay solicitudes pendientes. Esta seccion se actualiza sola cuando alguien pide entrar.</p>
+    {% endif %}
+  </div>
+
+  <div class="edit-card">
     <h2>Crear usuario</h2>
     <form method="post" action="/admin/usuarios" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
@@ -29,8 +64,8 @@
         <input type="text" name="username" required />
       </label>
       <label class="form-field">
-        <span>Correo (recibira el codigo de verificacion)</span>
-        <input type="email" name="email" required />
+        <span>Correo (opcional)</span>
+        <input type="email" name="email" />
       </label>
       <label class="checkbox-field">
         <input type="checkbox" name="es_admin" value="1" />
@@ -48,6 +83,7 @@
           <th>Usuario</th>
           <th>Correo</th>
           <th>Rol</th>
+          <th>Verificacion</th>
           <th>Estado</th>
           <th>Creado</th>
           <th></th>
@@ -59,6 +95,7 @@
           <td>{{ u.username }}</td>
           <td>{{ u.email or "Sin configurar" }}</td>
           <td>{{ "Administrador" if u.is_admin else "Asesor" }}</td>
+          <td>{{ ("Authenticator activo" if u.totp_enabled else "Authenticator pendiente") if u.is_admin else "Aprobacion del admin" }}</td>
           <td>{{ "Bloqueada" if u.locked_until else "OK" }}</td>
           <td>{{ u.created_at.strftime("%Y-%m-%d") }}</td>
           <td class="users-actions">
@@ -66,6 +103,12 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
               <button type="submit" class="btn-link">Reiniciar clave</button>
             </form>
+            {% if u.is_admin %}
+            <form method="post" action="/admin/usuarios/{{ u.id }}/resetear-2fa" onsubmit="return confirm('¿Reiniciar el Authenticator de ' + '{{ u.username }}' + '? Tendra que configurarlo de nuevo al entrar.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+              <button type="submit" class="btn-link">Reiniciar 2FA</button>
+            </form>
+            {% endif %}
             {% if u.id != user.id %}
             <form method="post" action="/admin/usuarios/{{ u.id }}/eliminar" onsubmit="return confirm('¿Eliminar a ' + '{{ u.username }}' + '? Esta accion no se puede deshacer.');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />

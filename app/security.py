@@ -8,8 +8,8 @@ import bcrypt
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 MIN_PASSWORD_LENGTH = 10
-OTP_TTL_MINUTES = 10
-OTP_RESEND_COOLDOWN_SECONDS = 30
+LOGIN_APPROVAL_TTL_MINUTES = 10
+TOTP_ISSUER = "Apple Travel"
 TRUSTED_DEVICE_DAYS = 30
 TRUSTED_DEVICE_COOKIE = "trusted_device"
 
@@ -51,10 +51,6 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 def email_is_valid(email: str) -> bool:
     return bool(_EMAIL_RE.match((email or "").strip()))
-
-
-def generate_otp_code() -> str:
-    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def is_locked(user: dict) -> bool:

@@ -75,19 +75,18 @@ En Vercel, el proyecto ya tiene conectada una base de datos Postgres (Neon, plan
 que guarda los usuarios. La variable `DATABASE_URL` la inyecta Vercel automaticamente — no
 hay que configurarla a mano en producción.
 
-### 2. Correo para los codigos de verificacion (SendGrid)
+### 2. Verificacion en dos pasos (sin correo)
 
-Vercel bloquea las conexiones SMTP salientes en sus funciones (puertos 25/465/587), asi
-que el envio de los codigos de 2FA se hace por la API HTTPS de **SendGrid** en vez de SMTP.
-Se eligio SendGrid (en vez de Resend) porque permite verificar un solo correo por
-confirmacion (sin tocar DNS del dominio):
+No se envia ningun correo. El ingreso funciona asi:
 
-1. Crea una cuenta gratis en [sendgrid.com](https://sendgrid.com).
-2. Ve a **Settings → Sender Authentication → Single Sender Verification** y verifica un
-   correo (ej. el mismo que uses para administrar estas herramientas) dando clic al link
-   de confirmacion que llega a esa bandeja. Ese correo va en `SENDGRID_FROM`.
-3. En **Settings → API Keys**, crea una API Key (permisos "Mail Send" basta) y guardala
-   como `SENDGRID_API_KEY`.
+- **Administradores:** despues de la contraseña, piden el codigo de 6 digitos de
+  **Google Authenticator** (o Microsoft Authenticator). La primera vez se escanea un QR para
+  vincularlo. Si un administrador pierde el celular, otro administrador puede usar
+  **Reiniciar 2FA** en `/admin/usuarios` para que lo configure de nuevo.
+- **Asesores:** despues de la contraseña quedan en "Esperando aprobacion" hasta que un
+  administrador los apruebe en `/admin/usuarios` (la solicitud vence en 10 minutos).
+
+Conviene tener al menos **dos administradores**, para que uno pueda reiniciar el 2FA del otro.
 
 ## Configuracion local
 
@@ -123,8 +122,7 @@ tabla de usuarios esta vacia).
 3. Conecta una base de datos Postgres (recomendado: Neon, desde el tab **Storage** del
    proyecto en Vercel) — esto crea `DATABASE_URL` automaticamente.
 4. En **Settings → Environment Variables**, agrega: `SESSION_SECRET`, `BASE_URL`
-   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), `SENDGRID_API_KEY`,
-   `SENDGRID_FROM`, y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el primer
+   (la URL que te da Vercel, ej. `https://tu-proyecto.vercel.app`), y opcionalmente `ADMIN_USERNAME` / `ADMIN_PASSWORD` para el primer
    arranque (bootstrap del primer administrador). `DROPBOX_SIGN_API_KEY` solo hace falta
    si reactivas el envio automatico a firma (ver nota mas arriba).
 5. Despliega.
@@ -135,9 +133,9 @@ tabla de usuarios esta vacia).
 api/index.py                        entrypoint que usa Vercel
 app/main.py                         arma la app FastAPI (sesiones, cabeceras de seguridad, rutas)
 app/db.py                           conexion a Postgres + creacion de tabla de usuarios
-app/security.py                     hash de contraseñas, codigos OTP, CSRF, bloqueo de cuenta
+app/security.py                     hash de contraseñas, CSRF, bloqueo de cuenta
 app/auth.py                         acceso a datos de usuarios + sesion
-app/services/email_client.py        envia el codigo de verificacion por correo (API SendGrid)
+app/services/totp.py                codigos de Google Authenticator (TOTP) y QR
 app/routes/auth_routes.py           login, cambio de clave forzado, correo/codigo de verificacion
 app/routes/admin_routes.py          panel de administracion de usuarios
 app/documents/                      un modulo por cada tipo de documento

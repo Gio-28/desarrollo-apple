@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Esperando aprobacion - Apple Travel{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="4" />{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
+    <h1>Esperando aprobacion</h1>
+    <p class="muted">
+      Hola, <strong>{{ username }}</strong>. Un administrador debe aprobar tu ingreso.
+      Esta pagina se actualiza sola y entrara apenas te aprueben (la solicitud vence en 10 minutos).
+    </p>
+    <p class="tiny muted"><a href="/logout" class="btn-link">Cancelar</a></p>
+  </div>
+</div>
+{% endblock %}

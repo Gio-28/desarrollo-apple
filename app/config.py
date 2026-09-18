@@ -15,8 +15,5 @@ class Settings:
     admin_username: str = os.environ.get("ADMIN_USERNAME", "")
     admin_password: str = os.environ.get("ADMIN_PASSWORD", "")
 
-    sendgrid_api_key: str = os.environ.get("SENDGRID_API_KEY", "")
-    sendgrid_from: str = os.environ.get("SENDGRID_FROM", "")
-
 
 settings = Settings()

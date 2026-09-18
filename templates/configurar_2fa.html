@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Configurar verificacion en dos pasos - Apple Travel{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <img src="/static/img/logo.png" alt="Apple Travel" class="login-logo" />
+    <h1>Configura tu verificacion</h1>
+    <p class="muted">
+      1. Instala <strong>Google Authenticator</strong> (o Microsoft Authenticator) en tu celular.<br />
+      2. Escanea este codigo QR desde la app.<br />
+      3. Escribe abajo el codigo de 6 digitos que te muestre.
+    </p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <div style="text-align: center; margin: 12px 0;">
+      <img src="{{ qr }}" alt="Codigo QR para Google Authenticator" width="200" height="200" />
+    </div>
+    <p class="tiny muted" style="text-align: center;">
+      ¿No puedes escanearlo? Escribe esta clave en la app:<br />
+      <code class="secret-code">{{ secret }}</code>
+    </p>
+
+    <form method="post" action="/configurar-2fa" class="auth-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <label class="form-field">
+        <span>Codigo de 6 digitos</span>
+        <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code" />
+      </label>
+      <button type="submit" class="btn-primary btn-block">Activar y entrar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

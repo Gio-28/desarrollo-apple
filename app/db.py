@@ -18,6 +18,21 @@ CREATE TABLE IF NOT EXISTS users (
     created_by TEXT
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS login_requests (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    user_agent TEXT,
+    ip TEXT,
+    decided_by TEXT,
+    decided_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_login_requests_user ON login_requests(user_id);
 
 CREATE TABLE IF NOT EXISTS trusted_devices (
     id SERIAL PRIMARY KEY,
